@@ -36,4 +36,9 @@
     <string name="onboarding_step3_twostep">Tap on ReDD Focus</string>
     <string name="onboarding_step4_twostep">Turn the app on</string>
     <string name="onboarding_step5_twostep">Tap "Allow"</string>
+
+    <plurals name="hides_elements">
+        <item quantity="one">Hide %d UI element</item>
+        <item quantity="other">Hide %d UI elements</item>
+    </plurals>
 </resources>
