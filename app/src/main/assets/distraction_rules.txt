@@ -12,4 +12,4 @@ com.linkedin.android##viewId=com.linkedin.android:id/tab_notifications##comment=
 com.whatsapp##viewId=com.whatsapp:id/search_meta_ai_input_send_button##desc=##comment=Hide AI suggestions in search
 com.whatsapp##viewId=com.whatsapp:id/extended_mini_fab##desc=##comment=Hide AI button
 com.whatsapp##viewId=com.whatsapp:id/newsletter_directory_row_container##comment=Hide recommended channels
-com.whatsapp##desc=Updates##comment=Hide Updates Top/Bottom tab
+com.whatsapp##desc=Updates##comment=Hide Updates button
