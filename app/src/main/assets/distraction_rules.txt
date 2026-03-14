@@ -9,7 +9,7 @@ com.instagram.android##viewId=com.instagram.android:id/media_group##comment=Hide
 com.instagram.android##viewId=com.instagram.android:id/root_clips_layout##desc=##comment=Hide Reels layout
 com.linkedin.android##viewId=com.linkedin.android:id/feed_item_update_card##comment=Hide feed item##blockTouches=false
 com.linkedin.android##viewId=com.linkedin.android:id/tab_notifications##comment=Hide notifications
-com.whatsapp##viewId=com.whatsapp:id/bottom_nav_container##comment=Hide bottom navigation
-com.whatsapp##viewId=com.whatsapp:id/empty_search_carousal##desc=##comment=Hide AI suggestions in search
-com.whatsapp##viewId=com.whatsapp:id/fab_second##desc=##comment=Hide AI button
+com.whatsapp##viewId=com.whatsapp:id/search_meta_ai_input_send_button##desc=##comment=Hide AI suggestions in search
+com.whatsapp##viewId=com.whatsapp:id/extended_mini_fab##desc=##comment=Hide AI button
 com.whatsapp##viewId=com.whatsapp:id/newsletter_directory_row_container##comment=Hide recommended channels
+com.whatsapp##desc=Updates##comment=Hide Updates Top/Bottom tab
