@@ -43,4 +43,31 @@
     </plurals>
     <string name="click_to_hide_elements">Click to hide elements</string>
     <string name="not_installed">Not installed</string>
+
+    <!-- Element Picker -->
+    <string name="picker_channel_name">Element Picker</string>
+    <string name="picker_channel_description">Allows you to select and hide elements in other apps</string>
+    <string name="picker_notification_title">ReDD Focus is active</string>
+    <string name="picker_notification_text">Tap inspect to pick an element to hide</string>
+    <string name="picker_action_inspect">Inspect element</string>
+    <string name="picker_action_stop">Stop inspecting</string>
+    <string name="picker_active_title">Picker mode active</string>
+    <string name="picker_active_text">Tap on an element to select it</string>
+    <string name="picker_hint">Tap on an element to select it</string>
+    <string name="picker_deeper">▼ Deeper</string>
+    <string name="picker_shallower">▲ Shallower</string>
+    <string name="picker_block">✓ Block</string>
+    <string name="picker_cancel">✕ Cancel</string>
+    <string name="picker_move">↕ Move</string>
+    <string name="picker_no_element">No element found at this position</string>
+    <string name="picker_deepest">Already at deepest element</string>
+    <string name="picker_shallowest">Already at shallowest element</string>
+    <string name="picker_confirm_title">Block this element?</string>
+    <string name="picker_selector_label">Matched by: %s</string>
+    <string name="picker_rule_preview">Rule: %s</string>
+    <string name="picker_comment_label">Comment (optional)</string>
+    <string name="picker_comment_hint">e.g. Hide AI button</string>
+    <string name="picker_dialog_cancel">Cancel</string>
+    <string name="picker_dialog_confirm">Block</string>
+    <string name="picker_rule_saved">Rule saved! Element will now be hidden.</string>
 </resources>

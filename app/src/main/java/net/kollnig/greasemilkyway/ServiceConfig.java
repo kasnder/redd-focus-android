@@ -98,4 +98,13 @@ public class ServiceConfig {
     public void saveCustomRules(String[] rules) {
         prefs.edit().putString(KEY_CUSTOM_RULES, String.join("\n", rules)).apply();
     }
+
+    /**
+     * Appends a single custom rule to the existing custom rules.
+     */
+    public void addCustomRule(String ruleString) {
+        String existing = prefs.getString(KEY_CUSTOM_RULES, "");
+        String updated = existing.isEmpty() ? ruleString : existing + "\n" + ruleString;
+        prefs.edit().putString(KEY_CUSTOM_RULES, updated).apply();
+    }
 }

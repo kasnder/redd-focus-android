@@ -23,6 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+
 /**
  * An accessibility service that helps control distractions by blocking specific content in Android apps
  * using an ad-blocker style filter syntax.
@@ -40,6 +45,9 @@ public class DistractionControlService extends AccessibilityService {
     private final Map<View, Rect> overlayBounds = new HashMap<>();
     private final Map<String, List<BlockedElement>> blockedElements = new HashMap<>();
     private WindowManager windowManager;
+    private ElementPickerNotification pickerNotification;
+    private ElementPickerOverlay pickerOverlay;
+    private BroadcastReceiver pickerReceiver;
     private final Runnable processEvent = () -> {
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
@@ -114,6 +122,30 @@ public class DistractionControlService extends AccessibilityService {
 
             layoutDumper = new LayoutDumper();
             layoutDumper.start();
+
+            // Initialize picker notification
+            pickerNotification = new ElementPickerNotification(this);
+            pickerNotification.showNotification();
+
+            // Initialize picker overlay
+            pickerOverlay = new ElementPickerOverlay(this, windowManager);
+
+            // Register broadcast receiver for notification actions
+            pickerReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    String action = intent.getAction();
+                    if (ElementPickerNotification.ACTION_START_PICKER.equals(action)) {
+                        startPickerMode();
+                    } else if (ElementPickerNotification.ACTION_STOP_PICKER.equals(action)) {
+                        stopPickerMode();
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ElementPickerNotification.ACTION_START_PICKER);
+            filter.addAction(ElementPickerNotification.ACTION_STOP_PICKER);
+            registerReceiver(pickerReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } catch (Exception e) {
             Log.e(TAG, "Error initializing service", e);
         }
@@ -160,6 +192,10 @@ public class DistractionControlService extends AccessibilityService {
         }
 
         if (!shouldProcessEvent(event)) return;
+
+        // Skip normal rule processing when picker is active
+        if (pickerOverlay != null && pickerOverlay.isActive()) return;
+
         ui.removeCallbacks(processEvent);
         ui.postDelayed(processEvent, PROCESSING_DELAY_MS);
     }
@@ -227,13 +263,41 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private boolean isTargetView(AccessibilityNodeInfo node, FilterRule rule) {
-        if (rule.targetViewId == null || rule.targetViewId.isEmpty()) {
-            CharSequence desc = node.getContentDescription();
-            return desc != null && rule.contentDescriptions.contains(desc.toString());
+        // Match by viewId if specified
+        if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+            String viewId = node.getViewIdResourceName();
+            return viewId != null && viewId.equals(rule.targetViewId);
         }
 
-        String viewId = node.getViewIdResourceName();
-        return viewId != null && viewId.equals(rule.targetViewId);
+        // Match by contentDescription if specified
+        if (rule.contentDescriptions != null && !rule.contentDescriptions.isEmpty()) {
+            CharSequence desc = node.getContentDescription();
+            if (desc != null && rule.contentDescriptions.contains(desc.toString())) {
+                return true;
+            }
+        }
+
+        // Match by className if specified
+        if (rule.targetClassName != null && !rule.targetClassName.isEmpty()) {
+            CharSequence className = node.getClassName();
+            if (className == null || !className.toString().equals(rule.targetClassName)) {
+                return false;
+            }
+            // If text is also specified, both must match
+            if (rule.targetText != null && !rule.targetText.isEmpty()) {
+                CharSequence text = node.getText();
+                return text != null && text.toString().equals(rule.targetText);
+            }
+            return true;
+        }
+
+        // Match by text alone if specified
+        if (rule.targetText != null && !rule.targetText.isEmpty()) {
+            CharSequence text = node.getText();
+            return text != null && text.toString().equals(rule.targetText);
+        }
+
+        return false;
     }
 
     private void processTargetView(AccessibilityNodeInfo node, FilterRule rule) {
@@ -375,8 +439,44 @@ public class DistractionControlService extends AccessibilityService {
         if (layoutDumper != null) {
             layoutDumper.stop();
         }
+        if (pickerOverlay != null) {
+            pickerOverlay.hide();
+        }
+        if (pickerNotification != null) {
+            pickerNotification.cancelNotification();
+        }
+        if (pickerReceiver != null) {
+            try {
+                unregisterReceiver(pickerReceiver);
+            } catch (Exception ignored) {
+            }
+        }
         overlayManager.forceClearOverlays(windowManager);
         blockedElements.clear();
+    }
+
+    /**
+     * Start picker mode: show the picker overlay and update the notification.
+     */
+    public void startPickerMode() {
+        if (pickerOverlay == null || pickerNotification == null) return;
+        Log.i(TAG, "Starting picker mode");
+        overlayManager.clearOverlays(windowManager, ui);
+        blockedElements.clear();
+        pickerOverlay.show();
+        pickerNotification.showPickerActiveNotification();
+    }
+
+    /**
+     * Stop picker mode: hide the picker overlay and restore normal notification.
+     */
+    public void stopPickerMode() {
+        if (pickerOverlay == null || pickerNotification == null) return;
+        Log.i(TAG, "Stopping picker mode");
+        pickerOverlay.hide();
+        pickerNotification.showNotification();
+        // Re-apply rules
+        updateRules();
     }
 
     private static class BlockedElement {

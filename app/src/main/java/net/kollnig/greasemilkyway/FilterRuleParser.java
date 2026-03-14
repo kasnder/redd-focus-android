@@ -58,6 +58,8 @@ class FilterRuleParser {
 
             String targetViewId = null;
             Set<String> descriptions = new HashSet<>();
+            String targetClassName = null;
+            String targetText = null;
             int color = Color.WHITE;  // Default to white
             boolean blockTouches = true;  // Default to blocking touches
 
@@ -101,6 +103,14 @@ class FilterRuleParser {
                         blockTouches = Boolean.parseBoolean(value);
                         Log.d(TAG, "Parsed blockTouches: " + blockTouches);
                         break;
+                    case "className":
+                        targetClassName = value;
+                        Log.d(TAG, "Found className: " + targetClassName);
+                        break;
+                    case "text":
+                        targetText = value;
+                        Log.d(TAG, "Found text: " + targetText);
+                        break;
                     case "comment":
                         currentComment = value;
                         Log.d(TAG, "Found comment: " + currentComment);
@@ -109,7 +119,7 @@ class FilterRuleParser {
             }
 
             // Create the rule
-            FilterRule rule = new FilterRule(packageName, targetViewId, descriptions, color, currentComment, line, blockTouches);
+            FilterRule rule = new FilterRule(packageName, targetViewId, descriptions, targetClassName, targetText, color, currentComment, line, blockTouches);
             Log.d(TAG, "Created rule: package=" + packageName +
                     ", viewId=" + targetViewId +
                     ", descriptions=" + descriptions +
