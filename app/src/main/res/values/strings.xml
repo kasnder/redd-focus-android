@@ -38,7 +38,9 @@
     <string name="onboarding_step5_twostep">Tap "Allow"</string>
 
     <plurals name="hides_elements">
-        <item quantity="one">Hide %d UI element</item>
-        <item quantity="other">Hide %d UI elements</item>
+        <item quantity="one">%d UI element hidden</item>
+        <item quantity="other">%d UI elements hidden</item>
     </plurals>
+    <string name="click_to_hide_elements">Click to hide elements</string>
+    <string name="not_installed">Not installed</string>
 </resources>

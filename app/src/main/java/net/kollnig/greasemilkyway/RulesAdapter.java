@@ -164,15 +164,18 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Sort rules by description
             packageRules.sort((r1, r2) -> r1.description.compareToIgnoreCase(r2.description));
 
-            // Add app header
-            items.add(new AppHeaderItem(packageName, packageRules.size()));
+            // Count only enabled rules
+            int enabledCount = 0;
+            for (FilterRule rule : packageRules) {
+                if (rule.enabled) enabledCount++;
+            }
 
-            // Only add rules if this app is expanded
-            // Load from SharedPreferences, default to false (collapsed)
-            boolean isExpanded = appExpandedStates.getOrDefault(
-                    packageName,
-                    collapsePrefs.getBoolean(KEY_APP_EXPANDED + packageName, false));
-            if (isExpanded) {
+            // Add app header
+            items.add(new AppHeaderItem(packageName, enabledCount));
+
+            // Show rules only when the package is enabled (not disabled)
+            boolean isPackageEnabled = !config.isPackageDisabled(packageName);
+            if (isPackageEnabled) {
                 for (FilterRule rule : packageRules) {
                     items.add(new RuleItem(rule));
                 }
@@ -260,10 +263,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             AppHeaderViewHolder viewHolder = (AppHeaderViewHolder) holder;
             AppHeaderItem appItem = (AppHeaderItem) item;
 
-            // Set dynamic rule count as subtitle
-            viewHolder.packageName.setText(context.getResources().getQuantityString(R.plurals.hides_elements,
-                    appItem.ruleCount, appItem.ruleCount));
-
             // Grey out if service is disabled
             viewHolder.itemView.setAlpha(serviceEnabled ? 1.0f : 0.4f);
             viewHolder.packageSwitch.setEnabled(serviceEnabled);
@@ -283,54 +282,24 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             }
             final boolean finalIsInstalled = isInstalled;
 
-            // Get or initialize expanded state for this app
-            boolean isExpanded = appExpandedStates.getOrDefault(
-                    packageName,
-                    collapsePrefs.getBoolean(KEY_APP_EXPANDED + packageName, false));
-            viewHolder.isExpanded = isExpanded;
-            appExpandedStates.put(packageName, isExpanded);
+            // Determine if the app toggle is currently enabled
+            boolean isAppEnabled = !config.isPackageDisabled(packageName);
 
-            // Set chevron rotation based on state
-            viewHolder.expandChevron.setRotation(isExpanded ? 180f : 0f);
-            viewHolder.expandChevron.setContentDescription(
-                    context.getString(isExpanded ? R.string.collapse_app_rules : R.string.expand_app_rules));
-
-            // Setup chevron click handler
-            viewHolder.expandChevron.setOnClickListener(v -> {
-                if (!finalIsInstalled) {
-                    Toast.makeText(context, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                viewHolder.isExpanded = !viewHolder.isExpanded;
-                appExpandedStates.put(packageName, viewHolder.isExpanded);
-
-                // Save state to SharedPreferences
-                collapsePrefs.edit()
-                        .putBoolean(KEY_APP_EXPANDED + packageName, viewHolder.isExpanded)
-                        .apply();
-
-                // Animate chevron rotation
-                viewHolder.expandChevron.animate()
-                        .rotation(viewHolder.isExpanded ? 180f : 0f)
-                        .setDuration(200)
-                        .start();
-
-                // Update contentDescription
-                viewHolder.expandChevron.setContentDescription(
-                        context.getString(
-                                viewHolder.isExpanded ? R.string.collapse_app_rules : R.string.expand_app_rules));
-
-                // Rebuild items list to show/hide rules
-                rebuildItemsList();
-            });
+            // Set subtitle text based on state
+            if (!finalIsInstalled) {
+                viewHolder.packageName.setText(context.getString(R.string.not_installed));
+            } else if (isAppEnabled && appItem.ruleCount > 0) {
+                viewHolder.packageName.setText(context.getResources().getQuantityString(
+                        R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount));
+            } else {
+                viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
+            }
 
             // Set name and icon
             if (displayName != null && iconRes != null) {
-                // Known app - use hardcoded name and icon
                 viewHolder.appName.setText(displayName);
                 viewHolder.appIcon.setImageResource(iconRes);
             } else {
-                // Unknown app - try to get from PackageManager
                 try {
                     ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
                     viewHolder.appName.setText(packageManager.getApplicationLabel(appInfo));
@@ -344,7 +313,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Gray out icon if not installed
             if (!finalIsInstalled) {
                 ColorMatrix matrix = new ColorMatrix();
-                matrix.setSaturation(0); // Grayscale
+                matrix.setSaturation(0);
                 viewHolder.appIcon.setColorFilter(new ColorMatrixColorFilter(matrix));
                 viewHolder.appIcon.setAlpha(0.5f);
             } else {
@@ -353,62 +322,21 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             }
 
             // Set up package switch
-            viewHolder.packageSwitch.setOnCheckedChangeListener(null); // Remove any existing listener
-            viewHolder.packageSwitch.setChecked(!config.isPackageDisabled(packageName)); // Invert the disabled state
-                                                                                         // for the switch
+            viewHolder.packageSwitch.setOnCheckedChangeListener(null);
+            viewHolder.packageSwitch.setChecked(isAppEnabled);
             viewHolder.packageSwitch.setOnClickListener(v -> {
                 if (!finalIsInstalled) {
-                    // Revert the visual toggle change, since we intercepted the click but it might
-                    // still toggle visually
-                    viewHolder.packageSwitch.setChecked(!config.isPackageDisabled(packageName));
+                    viewHolder.packageSwitch.setChecked(isAppEnabled);
                     Toast.makeText(context, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
                 }
             });
             viewHolder.packageSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (!finalIsInstalled)
-                    return; // Handled by onClickListener
+                if (!finalIsInstalled) return;
 
-                config.setPackageDisabled(packageName, !isChecked); // Invert the switch state for disabled state
-
-                if (isChecked) {
-                    // When enabling a collapsed app, force expand to show rules
-                    if (!viewHolder.isExpanded) {
-                        viewHolder.isExpanded = true;
-                        appExpandedStates.put(packageName, true);
-                        collapsePrefs.edit()
-                                .putBoolean(KEY_APP_EXPANDED + packageName, true)
-                                .apply();
-
-                        // Animate chevron to expanded state
-                        viewHolder.expandChevron.animate()
-                                .rotation(180f)
-                                .setDuration(200)
-                                .start();
-                        viewHolder.expandChevron.setContentDescription(
-                                context.getString(R.string.collapse_app_rules));
-                    }
-                } else {
-                    // When disabling app, force collapse to hide rules
-                    if (viewHolder.isExpanded) {
-                        viewHolder.isExpanded = false;
-                        appExpandedStates.put(packageName, false);
-                        collapsePrefs.edit()
-                                .putBoolean(KEY_APP_EXPANDED + packageName, false)
-                                .apply();
-
-                        // Animate chevron to collapsed state
-                        viewHolder.expandChevron.animate()
-                                .rotation(0f)
-                                .setDuration(200)
-                                .start();
-                        viewHolder.expandChevron.setContentDescription(
-                                context.getString(R.string.expand_app_rules));
-                    }
-                }
+                config.setPackageDisabled(packageName, !isChecked);
 
                 // When enabling app, if all rules are currently disabled, enable them all
                 if (isChecked) {
-                    // Check if all rules for this app are currently disabled
                     boolean allRulesDisabled = true;
                     for (FilterRule rule : currentRules) {
                         if (rule.packageName.equals(packageName) && rule.enabled) {
@@ -416,8 +344,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                             break;
                         }
                     }
-
-                    // If all rules were off, turn them all on
                     if (allRulesDisabled) {
                         for (FilterRule rule : currentRules) {
                             if (rule.packageName.equals(packageName)) {
@@ -428,30 +354,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     }
                 }
 
-                // Note: When disabling app, we don't change rule states
-
-                // When disabling a package, we don't change individual rule states
-                // When enabling a package, we restore the individual rule states
-                if (isChecked) {
-                    // Update all rules for this package to their saved states
-                    for (int i = position + 1; i < items.size(); i++) {
-                        Object nextItem = items.get(i);
-                        if (nextItem instanceof RuleItem) {
-                            RuleItem ruleItem = (RuleItem) nextItem;
-                            if (ruleItem.rule.packageName.equals(packageName)) {
-                                // Get the saved state from SharedPreferences
-                                String key = ServiceConfig.KEY_RULE_ENABLED + ruleItem.rule.hashCode();
-                                boolean savedState = config.getPrefs().getBoolean(key, true);
-                                ruleItem.rule.enabled = savedState;
-                            }
-                        } else if (nextItem instanceof AppHeaderItem) {
-                            // Stop when we reach the next app header
-                            break;
-                        }
-                    }
-                }
-
-                // Rebuild items list to show/hide expanded rules
+                // Rebuild to show/hide rules
                 rebuildItemsList();
 
                 // Notify the service to update its rules
@@ -459,6 +362,16 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 if (service != null) {
                     service.updateRules();
                 }
+            });
+
+            // Whole-row click toggles the switch (when installed and service enabled)
+            viewHolder.itemView.setOnClickListener(v -> {
+                if (!serviceEnabled) return;
+                if (!finalIsInstalled) {
+                    Toast.makeText(context, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                viewHolder.packageSwitch.toggle();
             });
         } else if (holder instanceof RuleViewHolder && item instanceof RuleItem) {
             RuleViewHolder viewHolder = (RuleViewHolder) holder;
@@ -514,17 +427,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                             // If no rules are enabled for this app, disable the app entirely and collapse
                             if (!anyRulesStillEnabled) {
                                 config.setPackageDisabled(currentRule.packageName, true);
-
-                                // Collapse the app
-                                appExpandedStates.put(currentRule.packageName, false);
-                                collapsePrefs.edit()
-                                        .putBoolean(KEY_APP_EXPANDED + currentRule.packageName, false)
-                                        .apply();
-
-                                // Rebuild to update the package switch UI and hide rules
-                                rebuildItemsList();
                             }
                         }
+                        
+                        // Rebuild to update the package switch UI, showing rules, and updated counts
+                        rebuildItemsList();
 
                         // Notify the service to update its rules
                         DistractionControlService service = DistractionControlService.getInstance();
@@ -769,8 +676,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         TextView packageName;
         ImageView appIcon;
         MaterialSwitch packageSwitch;
-        ImageView expandChevron;
-        boolean isExpanded = true; // Default expanded
 
         AppHeaderViewHolder(View itemView) {
             super(itemView);
@@ -778,7 +683,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             packageName = itemView.findViewById(R.id.package_name);
             appIcon = itemView.findViewById(R.id.app_icon);
             packageSwitch = itemView.findViewById(R.id.package_switch);
-            expandChevron = itemView.findViewById(R.id.expand_chevron);
         }
     }
 
