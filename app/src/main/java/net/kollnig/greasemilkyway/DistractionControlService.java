@@ -247,6 +247,21 @@ public class DistractionControlService extends AccessibilityService {
     private void applyRule(FilterRule rule, AccessibilityNodeInfo node) {
         if (node == null || !node.isVisibleToUser()) return;
 
+        // Handle path-based rules at the root level
+        if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
+            AccessibilityNodeInfo target = matchPath(node, rule.targetPath);
+            if (target != null) {
+                try {
+                    processTargetView(target, rule);
+                } finally {
+                    if (target != node) {
+                        target.recycle();
+                    }
+                }
+            }
+            return;
+        }
+
         if (isTargetView(node, rule)) {
             processTargetView(node, rule);
         }
@@ -269,7 +284,14 @@ public class DistractionControlService extends AccessibilityService {
             return viewId != null && viewId.equals(rule.targetViewId);
         }
 
-        // Match by contentDescription if specified
+        // Match by path if specified (preferred over desc/text/className)
+        if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
+            // Path matching is done at the root level via matchPath()
+            // Individual node matching returns false — the path is matched separately
+            return false;
+        }
+
+        // Match by contentDescription if specified (backward compat)
         if (rule.contentDescriptions != null && !rule.contentDescriptions.isEmpty()) {
             CharSequence desc = node.getContentDescription();
             if (desc != null && rule.contentDescriptions.contains(desc.toString())) {
@@ -283,7 +305,6 @@ public class DistractionControlService extends AccessibilityService {
             if (className == null || !className.toString().equals(rule.targetClassName)) {
                 return false;
             }
-            // If text is also specified, both must match
             if (rule.targetText != null && !rule.targetText.isEmpty()) {
                 CharSequence text = node.getText();
                 return text != null && text.toString().equals(rule.targetText);
@@ -298,6 +319,68 @@ public class DistractionControlService extends AccessibilityService {
         }
 
         return false;
+    }
+
+    /**
+     * Match a path selector against the accessibility tree starting from root.
+     * Path format: "ClassName[index]>ClassName[index]>..."
+     * Returns the node at the end of the path, or null if no match.
+     */
+    private AccessibilityNodeInfo matchPath(AccessibilityNodeInfo root, String path) {
+        if (root == null || path == null || path.isEmpty()) return null;
+
+        String[] segments = path.split(">");
+        AccessibilityNodeInfo current = root;
+
+        for (String segment : segments) {
+            String className;
+            int index = 0;
+
+            // Parse segment: "ClassName[index]" or just "ClassName"
+            int bracketStart = segment.indexOf('[');
+            if (bracketStart >= 0) {
+                className = segment.substring(0, bracketStart);
+                String indexStr = segment.substring(bracketStart + 1, segment.indexOf(']'));
+                try {
+                    index = Integer.parseInt(indexStr);
+                } catch (NumberFormatException e) {
+                    Log.w(TAG, "Invalid path index: " + indexStr);
+                    return null;
+                }
+            } else {
+                className = segment;
+            }
+
+            // Find the nth child with matching className
+            AccessibilityNodeInfo match = null;
+            int matchCount = 0;
+            for (int i = 0; i < current.getChildCount(); i++) {
+                AccessibilityNodeInfo child = current.getChild(i);
+                if (child == null) continue;
+
+                CharSequence childClass = child.getClassName();
+                if (childClass != null && childClass.toString().equals(className)) {
+                    if (matchCount == index) {
+                        match = child;
+                        break;
+                    }
+                    matchCount++;
+                }
+                child.recycle();
+            }
+
+            if (match == null) {
+                return null;
+            }
+
+            // Move deeper (don't recycle root — caller owns it)
+            if (current != root) {
+                current.recycle();
+            }
+            current = match;
+        }
+
+        return current;
     }
 
     private void processTargetView(AccessibilityNodeInfo node, FilterRule rule) {

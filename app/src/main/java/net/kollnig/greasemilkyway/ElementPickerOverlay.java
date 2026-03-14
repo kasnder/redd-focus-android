@@ -50,6 +50,7 @@ public class ElementPickerOverlay {
     private List<AccessibilityNodeInfo> nodesAtPoint = new ArrayList<>();
     private int currentNodeIndex = 0;
     private String currentPackageName = "";
+    private AccessibilityNodeInfo currentRootNode = null;
     private boolean isActive = false;
     private boolean isAtBottom = true;
 
@@ -107,6 +108,13 @@ public class ElementPickerOverlay {
         }
         nodesAtPoint.clear();
         currentNodeIndex = 0;
+        if (currentRootNode != null) {
+            try {
+                currentRootNode.recycle();
+            } catch (Exception ignored) {
+            }
+            currentRootNode = null;
+        }
     }
 
     private void removeSafely(View view) {
@@ -313,6 +321,8 @@ public class ElementPickerOverlay {
 
             // Collect all nodes whose bounds contain the tap point
             recycleNodes();
+            // Store a copy of the root for path generation
+            currentRootNode = AccessibilityNodeInfo.obtain(root);
             collectNodesAtPoint(root, (int) x, (int) y, nodesAtPoint);
 
             if (nodesAtPoint.isEmpty()) {
@@ -444,8 +454,8 @@ public class ElementPickerOverlay {
         }
 
         AccessibilityNodeInfo node = nodesAtPoint.get(currentNodeIndex);
-        String selectorDesc = ElementPickerRuleGenerator.getSelectorDescription(node);
-        String generatedRule = ElementPickerRuleGenerator.generateRule(node, currentPackageName, null);
+        String selectorDesc = ElementPickerRuleGenerator.getSelectorDescription(node, currentRootNode);
+        String generatedRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, null);
 
         // Build confirmation UI as an overlay (can't use AlertDialog from a service easily)
         showConfirmationOverlay(node, selectorDesc, generatedRule);
@@ -538,7 +548,7 @@ public class ElementPickerOverlay {
                 Color.argb(200, 200, 40, 40), Color.WHITE);
         confirmBtn.setOnClickListener(v -> {
             String comment = commentInput.getText().toString().trim();
-            String finalRule = ElementPickerRuleGenerator.generateRule(node, currentPackageName,
+            String finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName,
                     comment.isEmpty() ? null : comment);
             saveAndApplyRule(finalRule);
             removeSafely(container);

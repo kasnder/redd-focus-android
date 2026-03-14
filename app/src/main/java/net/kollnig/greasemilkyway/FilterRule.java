@@ -11,6 +11,7 @@ class FilterRule {
     final Set<String> contentDescriptions;
     final String targetClassName;
     final String targetText;
+    final String targetPath;
     final int color;
     final String description;
     final String ruleString;
@@ -18,12 +19,13 @@ class FilterRule {
     boolean enabled;
 
     FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
-               int color, String description, String ruleString, boolean blockTouches) {
+               String path, int color, String description, String ruleString, boolean blockTouches) {
         this.packageName = pkg;
         this.targetViewId = viewId;
         this.contentDescriptions = descs;
         this.targetClassName = className;
         this.targetText = text;
+        this.targetPath = path;
         this.color = color;
         this.description = description;
         this.ruleString = ruleString;
