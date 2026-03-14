@@ -31,6 +31,18 @@ public class OverlayManager {
         });
     }
 
+    public void updateOverlay(View overlay, WindowManager.LayoutParams params, WindowManager windowManager, Handler ui) {
+        ui.post(() -> {
+            try {
+                if (overlay.getParent() != null) {
+                    windowManager.updateViewLayout(overlay, params);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating overlay", e);
+            }
+        });
+    }
+
     public void removeOverlay(View overlay, WindowManager windowManager, Handler ui) {
         ui.post(() -> {
             try {

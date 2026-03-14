@@ -34,7 +34,7 @@ import android.content.IntentFilter;
  */
 public class DistractionControlService extends AccessibilityService {
     private static final String TAG = "DistractionControlService";
-    private static final int PROCESSING_DELAY_MS = 20;
+    private static final int PROCESSING_DELAY_MS = 5;
     private static final int MAX_OVERLAY_COUNT = 100; // Prevent memory issues
 
     // Singleton instance
@@ -42,12 +42,12 @@ public class DistractionControlService extends AccessibilityService {
     private final List<FilterRule> rules = new ArrayList<>();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final OverlayManager overlayManager = new OverlayManager();
-    private final Map<View, Rect> overlayBounds = new HashMap<>();
-    private final Map<String, List<BlockedElement>> blockedElements = new HashMap<>();
+    private final Map<String, BlockedElement> blockedElements = new HashMap<>();
     private WindowManager windowManager;
     private ElementPickerNotification pickerNotification;
     private ElementPickerOverlay pickerOverlay;
     private BroadcastReceiver pickerReceiver;
+    private final Set<String> activeRuleKeys = new java.util.HashSet<>();
     private final Runnable processEvent = () -> {
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
@@ -56,22 +56,24 @@ public class DistractionControlService extends AccessibilityService {
                 return;
             }
             try {
-                String packageName = root.getPackageName() != null ? root.getPackageName().toString() : "";
-
-                // Check if we have any blocked elements for this package
-                List<BlockedElement> elements = blockedElements.get(packageName);
-                if (elements != null) {
-                    // Check each blocked element to see if it still exists
-                    for (int i = elements.size() - 1; i >= 0; i--) {
-                        BlockedElement element = elements.get(i);
-                        if (!elementStillExists(root, element)) {
-                            overlayManager.removeOverlay(element.overlay, windowManager, ui);
-                            elements.remove(i);
-                        }
-                    }
-                }
+                // Track which rule keys are matched in this pass
+                activeRuleKeys.clear();
 
                 processRootNode(root);
+
+                // Remove overlays for rules that were NOT matched this pass
+                List<String> toRemove = new ArrayList<>();
+                for (Map.Entry<String, BlockedElement> entry : blockedElements.entrySet()) {
+                    if (!activeRuleKeys.contains(entry.getKey())) {
+                        toRemove.add(entry.getKey());
+                    }
+                }
+                for (String key : toRemove) {
+                    BlockedElement element = blockedElements.remove(key);
+                    if (element != null) {
+                        overlayManager.removeOverlay(element.overlay, windowManager, ui);
+                    }
+                }
             } finally {
                 root.recycle();
             }
@@ -99,8 +101,7 @@ public class DistractionControlService extends AccessibilityService {
         if (instance == null) return;
         rules.clear();
         rules.addAll(config.getRules());
-        overlayManager.clearOverlays(windowManager, ui);
-        blockedElements.clear();
+        clearAllOverlays();
         Log.i(TAG, "Rules updated, now have " + rules.size() + " rule(s)");
     }
 
@@ -178,16 +179,14 @@ public class DistractionControlService extends AccessibilityService {
             // Check for lockscreen
             if (packageName.equals("com.android.systemui")) {
                 Log.d(TAG, "Clearing overlays due to lockscreen");
-                overlayManager.forceClearOverlays(windowManager);
-                blockedElements.clear();
+                forceClearAllOverlays();
                 return;
             }
 
             // Check for common launcher packages
             if (isLauncherPackage(packageName)) {
                 Log.d(TAG, "Clearing overlays due to launcher switch");
-                overlayManager.forceClearOverlays(windowManager);
-                blockedElements.clear();
+                forceClearAllOverlays();
             }
         }
 
@@ -428,25 +427,60 @@ public class DistractionControlService extends AccessibilityService {
         return false;
     }
 
+    /**
+     * Build a unique key for a rule to identify its overlay.
+     */
+    private String getRuleKey(FilterRule rule) {
+        return rule.packageName + "::" + rule.ruleString;
+    }
+
     private void addOverlay(Rect area, FilterRule rule) {
+        String ruleKey = getRuleKey(rule);
+        activeRuleKeys.add(ruleKey);
+
+        // Check if an overlay already exists for this rule
+        BlockedElement existing = blockedElements.get(ruleKey);
+        if (existing != null) {
+            // Bounds unchanged — skip entirely
+            if (existing.bounds.equals(area)) {
+                return;
+            }
+            // Bounds changed — reuse the existing overlay view
+            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+            if (!rule.blockTouches) {
+                flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+            }
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                    area.width(),
+                    area.height(),
+                    area.left,
+                    area.top,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    flags,
+                    PixelFormat.TRANSLUCENT);
+            lp.gravity = Gravity.TOP | Gravity.START;
+            overlayManager.updateOverlay(existing.overlay, lp, windowManager, ui);
+            existing.bounds.set(area);
+            return;
+        }
+
         if (overlayManager.getOverlayCount() >= MAX_OVERLAY_COUNT) {
             Log.w(TAG, "Maximum overlay count reached, clearing old overlays");
-            overlayManager.clearOverlays(windowManager, ui);
-            blockedElements.clear();
+            clearAllOverlays();
         }
 
         View blocker = new View(this);
-        
+
         // Check if dark mode is enabled
         boolean isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         int color = rule.color;
-        
+
         // Only change the default white color to black in dark mode
         // If a color was explicitly specified in the rule (including white), keep it as is
         if (color == Color.WHITE && isDarkMode && !rule.ruleString.contains("color=")) {
             color = Color.BLACK;
         }
-        
+
         blocker.setBackgroundColor(color);
         blocker.setAlpha(1f);
 
@@ -466,44 +500,17 @@ public class DistractionControlService extends AccessibilityService {
         lp.gravity = Gravity.TOP | Gravity.START;
 
         overlayManager.addOverlay(blocker, lp, windowManager, ui);
-
-        List<BlockedElement> elements = blockedElements.computeIfAbsent(rule.packageName, k -> new ArrayList<>());
-        elements.add(new BlockedElement(rule.targetViewId, rule.contentDescriptions, blocker, new Rect(area)));
+        blockedElements.put(ruleKey, new BlockedElement(blocker, new Rect(area)));
     }
 
-    private boolean elementStillExists(AccessibilityNodeInfo root, BlockedElement element) {
-        if (root == null) return false;
+    private void clearAllOverlays() {
+        overlayManager.clearOverlays(windowManager, ui);
+        blockedElements.clear();
+    }
 
-        if (element.viewId != null && !element.viewId.isEmpty()) {
-            String viewId = root.getViewIdResourceName();
-            if (viewId != null && viewId.equals(element.viewId)) {
-                Rect bounds = new Rect();
-                root.getBoundsInScreen(bounds);
-                return bounds.equals(element.bounds);
-            }
-        }
-
-        if (element.descriptions != null && !element.descriptions.isEmpty()) {
-            CharSequence desc = root.getContentDescription();
-            if (desc != null && element.descriptions.contains(desc.toString())) {
-                Rect bounds = new Rect();
-                root.getBoundsInScreen(bounds);
-                return bounds.equals(element.bounds);
-            }
-        }
-
-        for (int i = 0; i < root.getChildCount(); i++) {
-            AccessibilityNodeInfo child = root.getChild(i);
-            if (child == null) continue;
-            try {
-                if (elementStillExists(child, element)) {
-                    return true;
-                }
-            } finally {
-                child.recycle();
-            }
-        }
-        return false;
+    private void forceClearAllOverlays() {
+        overlayManager.forceClearOverlays(windowManager);
+        blockedElements.clear();
     }
 
     @Override
@@ -544,8 +551,7 @@ public class DistractionControlService extends AccessibilityService {
     public void startPickerMode() {
         if (pickerOverlay == null || pickerNotification == null) return;
         Log.i(TAG, "Starting picker mode");
-        overlayManager.clearOverlays(windowManager, ui);
-        blockedElements.clear();
+        clearAllOverlays();
         pickerOverlay.show();
         pickerNotification.showPickerActiveNotification();
     }
@@ -563,14 +569,10 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private static class BlockedElement {
-        final String viewId;
-        final Set<String> descriptions;
         final View overlay;
         final Rect bounds;
 
-        BlockedElement(String viewId, Set<String> descriptions, View overlay, Rect bounds) {
-            this.viewId = viewId;
-            this.descriptions = descriptions;
+        BlockedElement(View overlay, Rect bounds) {
             this.overlay = overlay;
             this.bounds = bounds;
         }
