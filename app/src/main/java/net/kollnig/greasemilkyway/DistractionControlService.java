@@ -210,25 +210,22 @@ public class DistractionControlService extends AccessibilityService {
         if (instance == null)
             return;
 
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
-            if (packageName.equals(getPackageName())) {
-                return; // Ignore our own window state changes
-            }
+        String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
 
-            // Check for lockscreen
-            if (packageName.equals("com.android.systemui")) {
-                Log.d(TAG, "Clearing overlays due to lockscreen");
+        // Launcher and systemui are only in the package filter so we can
+        // detect home-screen / lock-screen transitions via WINDOW_STATE_CHANGED.
+        // Drop every other event type from them immediately to save battery.
+        if (packageName.equals("com.android.systemui") || isLauncherPackage(packageName)) {
+            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                Log.d(TAG, "Clearing overlays due to " + packageName);
                 forceClearAllOverlays();
-                return;
             }
+            return;
+        }
 
-            // Check for common launcher packages
-            if (isLauncherPackage(packageName)) {
-                Log.d(TAG, "Clearing overlays due to launcher switch");
-                forceClearAllOverlays();
-                return;
-            }
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && packageName.equals(getPackageName())) {
+            return; // Ignore our own window state changes
         }
 
         if (!shouldProcessEvent(event))
