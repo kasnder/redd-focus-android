@@ -97,6 +97,7 @@ public class DistractionControlService extends AccessibilityService {
     private LayoutDumper layoutDumper;
     private boolean isDarkMode;
     private String cachedLauncherPackage;
+    private final Runnable updateRulesRunnable = this::updateRules;
 
     /**
      * Get the current instance of the service.
@@ -114,11 +115,31 @@ public class DistractionControlService extends AccessibilityService {
     public void updateRules() {
         if (instance == null)
             return;
+        
+        ui.removeCallbacks(updateRulesRunnable);
+        
         rules.clear();
         rules.addAll(config.getRules());
         clearAllOverlays();
         configureAccessibilityService();
         Log.i(TAG, "Rules updated, now have " + rules.size() + " rule(s)");
+
+        // Schedule next update if any rule is paused
+        long nextUpdate = -1;
+        long currentTime = System.currentTimeMillis();
+        for (FilterRule rule : rules) {
+            if (rule.isPaused && rule.pausedUntil > currentTime) {
+                if (nextUpdate == -1 || rule.pausedUntil < nextUpdate) {
+                    nextUpdate = rule.pausedUntil;
+                }
+            }
+        }
+
+        if (nextUpdate != -1) {
+            long delay = Math.max(0, nextUpdate - currentTime);
+            Log.d(TAG, "Scheduling rules update in " + (delay / 1000) + " seconds");
+            ui.postDelayed(updateRulesRunnable, delay);
+        }
     }
 
     @Override

@@ -11,6 +11,9 @@ import android.widget.ImageView;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.TextView;
 import android.app.AlertDialog;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -34,7 +37,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private final ServiceConfig config;
     private final PackageManager packageManager;
     private final List<Object> items = new ArrayList<>();
-    private OnRuleStateChangedListener onRuleStateChangedListener;
     private List<FilterRule> currentRules = new ArrayList<>();
 
     // Hardcoded app names for known packages
@@ -178,11 +180,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Set subtitle text based on state
             if (!finalIsInstalled) {
                 viewHolder.packageName.setText(context.getString(R.string.not_installed));
-            } else if (isAppEnabled && appItem.ruleCount > 0) {
-                viewHolder.packageName.setText(context.getResources().getQuantityString(
-                        R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount));
+            } else if (isAppEnabled) {
+                if (appItem.ruleCount > 0) {
+                    viewHolder.packageName.setText(context.getResources().getQuantityString(
+                            R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount));
+                } else {
+                    viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
+                }
             } else {
-                viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
+                long pauseUntil = config.getPackagePausedUntil(packageName);
+                if (pauseUntil > System.currentTimeMillis()) {
+                    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+                    String timeStr = sdf.format(new Date(pauseUntil));
+                    viewHolder.packageName.setText("Paused until " + timeStr);
+                } else {
+                    viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
+                }
             }
 
             // Set name and icon
@@ -223,23 +236,37 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             viewHolder.packageSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (!finalIsInstalled) return;
 
-                config.setPackageDisabled(packageName, !isChecked);
+                if (!isChecked) {
+                    // Intercept disabling
+                    viewHolder.packageSwitch.setOnCheckedChangeListener(null);
+                    viewHolder.packageSwitch.setChecked(true); // Revert visually
+                    
+                    if (context instanceof MainActivity) {
+                        ((MainActivity) context).runWithFrictionGate("Disable " + viewHolder.appName.getText(), () -> {
+                            showPauseDialog(packageName, null);
+                        });
+                    }
+                    viewHolder.packageSwitch.setOnCheckedChangeListener(((buttonView1, isChecked1) -> { /* Re-register will happen in rebuild */ }));
+                    return;
+                }
+
+                config.setPackageDisabled(packageName, false);
+                config.setPackagePausedUntil(packageName, 0);
 
                 // When enabling app, if all rules are currently disabled, enable them all
-                if (isChecked) {
-                    boolean allRulesDisabled = true;
-                    for (FilterRule rule : currentRules) {
-                        if (rule.packageName.equals(packageName) && rule.enabled) {
-                            allRulesDisabled = false;
-                            break;
-                        }
+                boolean allRulesDisabled = true;
+                for (FilterRule rule : currentRules) {
+                    if (rule.packageName.equals(packageName) && rule.enabled) {
+                        allRulesDisabled = false;
+                        break;
                     }
-                    if (allRulesDisabled) {
-                        for (FilterRule rule : currentRules) {
-                            if (rule.packageName.equals(packageName)) {
-                                rule.enabled = true;
-                                config.setRuleEnabled(rule, true);
-                            }
+                }
+                if (allRulesDisabled) {
+                    for (FilterRule rule : currentRules) {
+                        if (rule.packageName.equals(packageName)) {
+                            rule.enabled = true;
+                            config.setRuleEnabled(rule, true);
+                            config.setRulePausedUntil(rule, 0);
                         }
                     }
                 }
@@ -248,10 +275,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 rebuildItemsList();
 
                 // Notify the service to update its rules
-                DistractionControlService service = DistractionControlService.getInstance();
-                if (service != null) {
-                    service.updateRules();
-                }
+                notifyService();
             });
 
             // Whole-row click toggles the switch (when installed)
@@ -269,8 +293,17 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 
             viewHolder.ruleDescription.setText(rule.description);
 
-            // Hide ruleDetails by default
-            viewHolder.ruleDetails.setVisibility(View.GONE);
+            // Set subtitle text based on state
+            if (rule.enabled) {
+                viewHolder.ruleDetails.setVisibility(View.GONE);
+            } else if (rule.isPaused) {
+                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+                String timeStr = sdf.format(new Date(rule.pausedUntil));
+                viewHolder.ruleDetails.setText("Paused until " + timeStr);
+                viewHolder.ruleDetails.setVisibility(View.VISIBLE);
+            } else {
+                viewHolder.ruleDetails.setVisibility(View.GONE);
+            }
 
             // Check if the package is disabled
             boolean isPackageDisabled = config.isPackageDisabled(rule.packageName);
@@ -291,37 +324,29 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     RuleItem currentRuleItem = (RuleItem) currentItem;
                     FilterRule currentRule = currentRuleItem.rule;
                     if (currentRule.enabled != isChecked) { // Only update if the state actually changed
-                        currentRule.enabled = isChecked;
-                        config.setRuleEnabled(currentRule, isChecked);
-
-                        // If disabling a rule, check if it's the last enabled rule for this app
                         if (!isChecked) {
-                            boolean anyRulesStillEnabled = false;
-                            for (FilterRule r : currentRules) {
-                                if (r.packageName.equals(currentRule.packageName) && r.enabled) {
-                                    anyRulesStillEnabled = true;
-                                    break;
-                                }
+                            // Intercept disabling
+                            viewHolder.ruleSwitch.setOnCheckedChangeListener(null);
+                            viewHolder.ruleSwitch.setChecked(true); // Revert visually
+                            
+                            if (context instanceof MainActivity) {
+                                ((MainActivity) context).runWithFrictionGate("Disable Rule", () -> {
+                                    showPauseDialog(currentRule.packageName, currentRule);
+                                });
                             }
-
-                            // If no rules are enabled for this app, disable the app entirely and collapse
-                            if (!anyRulesStillEnabled) {
-                                config.setPackageDisabled(currentRule.packageName, true);
-                            }
+                            return;
                         }
-                        
+
+                        currentRule.enabled = true;
+                        currentRule.isPaused = false;
+                        config.setRuleEnabled(currentRule, true);
+                        config.setRulePausedUntil(currentRule, 0);
+
                         // Rebuild to update the package switch UI, showing rules, and updated counts
                         rebuildItemsList();
 
                         // Notify the service to update its rules
-                        DistractionControlService service = DistractionControlService.getInstance();
-                        if (service != null) {
-                            service.updateRules();
-                        }
-
-                        if (onRuleStateChangedListener != null) {
-                            onRuleStateChangedListener.onRuleStateChanged(currentRule);
-                        }
+                        notifyService();
                     }
                 }
             });
@@ -329,44 +354,85 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Set up long click to delete custom rules
             viewHolder.itemView.setOnLongClickListener(v -> {
                 if (rule.isCustom) {
-                    new AlertDialog.Builder(context)
-                            .setTitle(R.string.delete_rule_title)
-                            .setMessage(R.string.delete_rule_message)
-                            .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
-                                config.removeCustomRule(rule.ruleString);
-                                
-                                // Clean up the current rules list
-                                currentRules.remove(rule);
-                                
-                                // Check if we need to disable the package if it was the last rule
-                                boolean anyRulesStillEnabled = false;
-                                for (FilterRule r : currentRules) {
-                                    if (r.packageName.equals(rule.packageName) && r.enabled) {
-                                        anyRulesStillEnabled = true;
-                                        break;
-                                    }
-                                }
-                                if (!anyRulesStillEnabled) {
-                                    config.setPackageDisabled(rule.packageName, true);
-                                }
-                                
-                                rebuildItemsList();
-                                
-                                DistractionControlService service = DistractionControlService.getInstance();
-                                if (service != null) {
-                                    service.updateRules();
-                                }
-                                
-                                Toast.makeText(context, R.string.rule_deleted, Toast.LENGTH_SHORT).show();
-                            })
-                            .setNegativeButton(R.string.delete_rule_cancel, null)
-                            .show();
+                    if (context instanceof MainActivity) {
+                        ((MainActivity) context).runWithFrictionGate("Delete Rule", () -> {
+                            new AlertDialog.Builder(context)
+                                    .setTitle(R.string.delete_rule_title)
+                                    .setMessage(R.string.delete_rule_message)
+                                    .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
+                                        config.removeCustomRule(rule.ruleString);
+                                        
+                                        // Clean up the current rules list
+                                        currentRules.remove(rule);
+                                        
+                                        // Check if we need to disable the package if it was the last rule
+                                        boolean anyRulesStillEnabled = false;
+                                        for (FilterRule r : currentRules) {
+                                            if (r.packageName.equals(rule.packageName) && r.enabled) {
+                                                anyRulesStillEnabled = true;
+                                                break;
+                                            }
+                                        }
+                                        if (!anyRulesStillEnabled) {
+                                            config.setPackageDisabled(rule.packageName, true);
+                                        }
+                                        
+                                        rebuildItemsList();
+                                        notifyService();
+                                        
+                                        Toast.makeText(context, R.string.rule_deleted, Toast.LENGTH_SHORT).show();
+                                    })
+                                    .setNegativeButton(R.string.delete_rule_cancel, null)
+                                    .show();
+                        });
+                    }
                     return true;
                 } else {
                     Toast.makeText(context, R.string.builtin_rule_no_delete, Toast.LENGTH_SHORT).show();
                     return true; // Consume the long click anyway to show the feedback
                 }
             });
+        }
+    }
+
+    private void showPauseDialog(String packageName, FilterRule rule) {
+        int durationMins = config.getPauseDurationMins();
+        String message = "Do you want to pause for " + durationMins + " minutes or disable permanently?";
+        
+        new AlertDialog.Builder(context)
+                .setTitle("Disable Rule")
+                .setMessage(message)
+                .setPositiveButton("Pause (" + durationMins + "m)", (dialog, which) -> {
+                    long until = System.currentTimeMillis() + (durationMins * 60 * 1000L);
+                    if (rule != null) {
+                        config.setRuleEnabled(rule, false);
+                        config.setRulePausedUntil(rule, until);
+                    } else {
+                        config.setPackageDisabled(packageName, true);
+                        config.setPackagePausedUntil(packageName, until);
+                    }
+                    rebuildItemsList();
+                    notifyService();
+                })
+                .setNeutralButton("Disable Permanently", (dialog, which) -> {
+                    if (rule != null) {
+                        config.setRuleEnabled(rule, false);
+                        config.setRulePausedUntil(rule, 0);
+                    } else {
+                        config.setPackageDisabled(packageName, true);
+                        config.setPackagePausedUntil(packageName, 0);
+                    }
+                    rebuildItemsList();
+                    notifyService();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void notifyService() {
+        DistractionControlService service = DistractionControlService.getInstance();
+        if (service != null) {
+            service.updateRules();
         }
     }
 

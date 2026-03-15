@@ -18,6 +18,8 @@ public class FilterRule {
     final boolean blockTouches;
     boolean enabled;
     boolean isCustom;
+    boolean isPaused;
+    long pausedUntil;
 
     FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
                String path, int color, String description, String ruleString, boolean blockTouches) {
@@ -33,6 +35,8 @@ public class FilterRule {
         this.blockTouches = blockTouches;
         this.enabled = true;
         this.isCustom = false;
+        this.isPaused = false;
+        this.pausedUntil = 0;
     }
 
     boolean matchesPackage(CharSequence pkgName) {

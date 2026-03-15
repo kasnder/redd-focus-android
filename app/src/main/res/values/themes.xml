@@ -30,6 +30,11 @@
     </style>
 
     <style name="Theme.GreaseMilkyway" parent="Base.Theme.GreaseMilkyway" />
+
+    <style name="Theme.GreaseMilkyway.NoActionBar" parent="Base.Theme.GreaseMilkyway">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
     
     <!-- Custom toolbar title style with bold text -->
     <style name="ToolbarTitleText" parent="TextAppearance.Material3.TitleLarge">

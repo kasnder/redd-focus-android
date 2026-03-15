@@ -2,9 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -40,7 +41,18 @@
             android:name="net.kollnig.greasemilkyway.CustomRulesActivity"
             android:exported="false"
             android:label="@string/custom_rules_title"
+            android:parentActivityName="net.kollnig.greasemilkyway.SettingsActivity" />
+
+        <activity
+            android:name="net.kollnig.greasemilkyway.SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title"
             android:parentActivityName="net.kollnig.greasemilkyway.MainActivity" />
+
+        <activity
+            android:name="net.kollnig.greasemilkyway.FrictionGateActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GreaseMilkyway.NoActionBar" />
 
         <service
             android:name="net.kollnig.greasemilkyway.DistractionControlService"

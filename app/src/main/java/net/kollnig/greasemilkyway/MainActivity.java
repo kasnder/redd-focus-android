@@ -42,6 +42,18 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView rulesList;
     private RulesAdapter adapter;
 
+    private Runnable onFrictionGatePassed;
+
+    private final ActivityResultLauncher<Intent> frictionGateLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && onFrictionGatePassed != null) {
+                    onFrictionGatePassed.run();
+                }
+                onFrictionGatePassed = null;
+                // Re-enable UI or rebuild list if needed
+                loadSettings();
+            });
+
     private final ActivityResultLauncher<String> notificationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 if (isGranted) {
@@ -87,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup settings button in footer
         findViewById(R.id.settings_button).setOnClickListener(v -> {
-            Intent intent = new Intent(this, CustomRulesActivity.class);
+            Intent intent = new Intent(this, SettingsActivity.class);
             startActivity(intent);
         });
         
@@ -261,6 +273,20 @@ public class MainActivity extends AppCompatActivity {
         footerText.setText(spannableString);
         footerText.setMovementMethod(LinkMovementMethod.getInstance());
         footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
+    }
+
+    public void runWithFrictionGate(String contextTitle, Runnable action) {
+        int wordCount = config.getFrictionWordCount();
+        if (wordCount <= 0) {
+            action.run();
+            return;
+        }
+
+        this.onFrictionGatePassed = action;
+        Intent intent = new Intent(this, FrictionGateActivity.class);
+        intent.putExtra("WORD_COUNT", wordCount);
+        intent.putExtra("CONTEXT_TITLE", contextTitle);
+        frictionGateLauncher.launch(intent);
     }
 
     @Override

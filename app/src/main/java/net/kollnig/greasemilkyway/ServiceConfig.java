@@ -19,6 +19,10 @@ public class ServiceConfig {
     public static final String KEY_RULE_ENABLED = "rule_enabled_";
     private static final String KEY_CUSTOM_RULES = "custom_rules";
     private static final String KEY_PACKAGE_DISABLED = "package_disabled_";
+    private static final String KEY_PAUSE_UNTIL_RULE_ = "pause_until_rule_";
+    private static final String KEY_PAUSE_UNTIL_PACKAGE_ = "pause_until_package_";
+    private static final String KEY_FRICTION_WORD_COUNT = "friction_word_count";
+    private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
 
     private final SharedPreferences prefs;
@@ -39,10 +43,30 @@ public class ServiceConfig {
         String key = KEY_RULE_ENABLED + rule.hashCode();
         prefs.edit().putBoolean(key, enabled).apply();
     }
+    
+    public void setRulePausedUntil(FilterRule rule, long timestampMillis) {
+        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        prefs.edit().putLong(key, timestampMillis).apply();
+    }
+    
+    public long getRulePausedUntil(FilterRule rule) {
+        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        return prefs.getLong(key, 0);
+    }
 
     public void setPackageDisabled(String packageName, boolean disabled) {
         String key = KEY_PACKAGE_DISABLED + packageName;
         prefs.edit().putBoolean(key, disabled).apply();
+    }
+    
+    public void setPackagePausedUntil(String packageName, long timestampMillis) {
+        String key = KEY_PAUSE_UNTIL_PACKAGE_ + packageName;
+        prefs.edit().putLong(key, timestampMillis).apply();
+    }
+    
+    public long getPackagePausedUntil(String packageName) {
+        String key = KEY_PAUSE_UNTIL_PACKAGE_ + packageName;
+        return prefs.getLong(key, 0);
     }
 
     public boolean isPackageDisabled(String packageName) {
@@ -79,19 +103,71 @@ public class ServiceConfig {
         }
 
         // Apply saved enabled states
+        long currentTime = System.currentTimeMillis();
         for (FilterRule rule : rules) {
-            String key = KEY_RULE_ENABLED + rule.hashCode();
-            // Default all rules to disabled (opt-in system)
-            boolean ruleEnabled = prefs.getBoolean(key, false);
-            // If the package is disabled, force disable all rules for that package
+            String ruleEnabledKey = KEY_RULE_ENABLED + rule.hashCode();
+            boolean ruleEnabled = prefs.getBoolean(ruleEnabledKey, false);
+            
+            long packagePauseUntil = 0;
+            if (rule.packageName != null) {
+                packagePauseUntil = getPackagePausedUntil(rule.packageName);
+            }
+            long rulePauseUntil = getRulePausedUntil(rule);
+
+            // If the package is disabled (and not just temporarily paused), force disable all rules for that package
             if (rule.packageName != null && isPackageDisabled(rule.packageName)) {
-                rule.enabled = false;
+                
+                if (packagePauseUntil > currentTime) {
+                    // It is paused but time hasn't expired yet -> it stays disabled
+                    rule.enabled = false;
+                    rule.isPaused = true;
+                    rule.pausedUntil = packagePauseUntil;
+                } else if (packagePauseUntil > 0) {
+                    // It was paused and time expired -> clear pause and re-enable
+                    setPackagePausedUntil(rule.packageName, 0);
+                    setPackageDisabled(rule.packageName, false);
+                    rule.enabled = true;
+                    rule.isPaused = false;
+                } else {
+                    rule.enabled = false;
+                }
             } else {
-                rule.enabled = ruleEnabled;
+                if (!ruleEnabled && rulePauseUntil > currentTime) {
+                    // Rule is explicitly paused
+                    rule.enabled = false;
+                    rule.isPaused = true;
+                    rule.pausedUntil = rulePauseUntil;
+                } else if (!ruleEnabled && rulePauseUntil > 0) {
+                    // Rule was paused and time expired
+                    setRulePausedUntil(rule, 0);
+                    setRuleEnabled(rule, true);
+                    rule.enabled = true;
+                    rule.isPaused = false;
+                    // Because setting ruleEnabled to true updates prefs, it will persist
+                } else {
+                    rule.enabled = ruleEnabled;
+                }
             }
         }
 
         return rules;
+    }
+
+    public int getFrictionWordCount() {
+        return prefs.getInt(KEY_FRICTION_WORD_COUNT, 0);
+    }
+
+    public void setFrictionWordCount(int count) {
+        prefs.edit().putInt(KEY_FRICTION_WORD_COUNT, count).apply();
+    }
+
+    public int getPauseDurationMins() {
+        // Default to 10 mins
+        return prefs.getInt(KEY_PAUSE_DURATION_MINS, 10);
+    }
+
+    public void setPauseDurationMins(int mins) {
+        prefs.edit().putInt(KEY_PAUSE_DURATION_MINS, mins).apply();
     }
 
     public String[] getCustomRules() {
