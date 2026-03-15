@@ -84,6 +84,7 @@ public class DistractionControlService extends AccessibilityService {
     private ServiceConfig config;
     private LayoutDumper layoutDumper;
     private boolean isDarkMode;
+    private String cachedLauncherPackage;
 
     /**
      * Get the current instance of the service.
@@ -172,7 +173,19 @@ public class DistractionControlService extends AccessibilityService {
                     packages.add(rule.packageName);
                 }
             }
-            info.packageNames = packages.isEmpty() ? null : packages.toArray(new String[0]);
+
+            if (!packages.isEmpty()) {
+                // Always include launcher and systemui so we can detect
+                // home-screen / lock-screen transitions and clear overlays
+                packages.add("com.android.systemui");
+                String launcher = getLauncherPackage();
+                if (launcher != null) {
+                    packages.add(launcher);
+                }
+                info.packageNames = packages.toArray(new String[0]);
+            } else {
+                info.packageNames = null;
+            }
 
             setServiceInfo(info);
             Log.i(TAG, "Package filter updated: " + packages);
@@ -214,6 +227,7 @@ public class DistractionControlService extends AccessibilityService {
             if (isLauncherPackage(packageName)) {
                 Log.d(TAG, "Clearing overlays due to launcher switch");
                 forceClearAllOverlays();
+                return;
             }
         }
 
@@ -228,14 +242,29 @@ public class DistractionControlService extends AccessibilityService {
         ui.post(processEvent);
     }
 
+    /**
+     * Resolve and cache the default launcher package name.
+     */
+    private String getLauncherPackage() {
+        if (cachedLauncherPackage == null) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_MAIN);
+                intent.addCategory(Intent.CATEGORY_HOME);
+                android.content.pm.ResolveInfo resolveInfo =
+                        getPackageManager().resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
+                if (resolveInfo != null && resolveInfo.activityInfo != null) {
+                    cachedLauncherPackage = resolveInfo.activityInfo.packageName;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error resolving launcher package", e);
+            }
+        }
+        return cachedLauncherPackage;
+    }
+
     private boolean isLauncherPackage(String packageName) {
-        PackageManager localPackageManager = getPackageManager();
-        Intent intent = new Intent("android.intent.action.MAIN");
-        intent.addCategory("android.intent.category.HOME");
-        String str = localPackageManager
-                .resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY).activityInfo.packageName;
-        Log.e("Current launcher Package Name:", str);
-        return packageName.equals(str);
+        String launcher = getLauncherPackage();
+        return launcher != null && launcher.equals(packageName);
     }
 
     private boolean shouldProcessEvent(AccessibilityEvent event) {
