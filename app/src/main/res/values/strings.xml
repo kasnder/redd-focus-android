@@ -94,7 +94,7 @@
     <string name="picker_intro_cancel">Not now</string>
     <string name="picker_notification_shown">Picker ready! Switch to any app to start.</string>
     <string name="settings_title">Settings</string>
-    <string name="friction_gate_settings_title">Friction Gate</string>
+    <string name="friction_gate_settings_title">Type number of words to disable rule</string>
     <string name="custom_rules_subtitle">Manage your own custom distraction rules</string>
     <string name="pause_duration_title">Default Pause Duration</string>
     <string name="pause_duration_minutes">%d minutes</string>
