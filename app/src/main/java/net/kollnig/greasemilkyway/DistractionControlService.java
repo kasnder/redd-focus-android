@@ -218,6 +218,9 @@ public class DistractionControlService extends AccessibilityService {
         if (packageName.equals("com.android.systemui") || isLauncherPackage(packageName)) {
             if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                 Log.d(TAG, "Clearing overlays due to " + packageName);
+                // Cancel any queued processEvent so it can't re-create overlays
+                // from a stale root window that hasn't fully transitioned yet
+                ui.removeCallbacks(processEvent);
                 forceClearAllOverlays();
             }
             return;
