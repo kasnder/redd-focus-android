@@ -67,7 +67,12 @@ public class CustomRulesActivity extends AppCompatActivity {
         }
 
         // Setup FAB to show element picker notification
-        findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
+        View fab = findViewById(R.id.custom_rules_button);
+        if (getResources().getBoolean(R.bool.show_custom_rules_fab)) {
+            fab.setOnClickListener(v -> onFabClicked());
+        } else {
+            fab.setVisibility(View.GONE);
+        }
     }
 
     @Override

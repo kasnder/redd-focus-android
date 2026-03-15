@@ -1,32 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for ReDD Focus Android - Light Mode -->
     <style name="Base.Theme.GreaseMilkyway" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color - used for app bar, switches, buttons -->
         <item name="colorPrimary">@color/primary_blue</item>
-        
-        <!-- Darker variant of primary - used for status bar, darker UI elements -->
         <item name="colorPrimaryVariant">@color/primary_blue</item>
-        
-        <!-- Color of text/icons on top of primary color -->
         <item name="colorOnPrimary">@color/white</item>
-        
-        <!-- Background color for the app -->
         <item name="android:windowBackground">@color/background_main</item>
-        
-        <!-- Accent color for FABs (Floating Action Buttons) and other accents -->
         <item name="colorSecondary">@color/primary_blue</item>
         <item name="colorOnSecondary">@color/white</item>
-        
-        <!-- Text colors for consistency -->
         <item name="android:textColorPrimary">@color/text_dark</item>
         <item name="android:textColorSecondary">@color/text_light</item>
-        
-        <!-- Status bar color (the bar at the very top with time/battery) -->
+        <!-- Red status bar to match toolbar -->
         <item name="android:statusBarColor">@color/header_bg</item>
-        
-        <!-- Make status bar icons dark in light mode for better contrast -->
-        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <!-- White status bar icons for contrast on red -->
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
     </style>
 
     <style name="Theme.GreaseMilkyway" parent="Base.Theme.GreaseMilkyway" />
@@ -35,20 +21,15 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
-    
-    <!-- Custom toolbar title style with bold text -->
+
+    <!-- White title text for red toolbar -->
     <style name="ToolbarTitleText" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@color/text_dark</item>
-    </style>
-    
-    <!-- Custom toolbar title style without bold (for custom rules screen) -->
-    <style name="ToolbarTitleTextRegular" parent="TextAppearance.Material3.TitleLarge">
-        <item name="android:textStyle">normal</item>
-        <item name="android:textColor">@color/text_dark</item>
+        <item name="android:textColor">@color/white</item>
     </style>
 
-    <!-- Theme used for the toolbar to control icon tinting -->
+    <!-- White icon tint for gear icon and back arrow on red toolbar -->
     <style name="ToolbarTheme" parent="">
+        <item name="colorControlNormal">@color/white</item>
     </style>
 </resources>

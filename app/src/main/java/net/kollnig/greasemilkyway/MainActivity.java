@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
         if (accessibilityPromptDialog != null && accessibilityPromptDialog.isShowing()) {
             return;
         }
-        accessibilityPromptDialog = new AlertDialog.Builder(this)
+        AlertDialog.Builder promptBuilder = new AlertDialog.Builder(this)
                 .setTitle(R.string.accessibility_prompt_title)
                 .setMessage(R.string.accessibility_prompt_message)
                 .setPositiveButton(R.string.accessibility_prompt_enable, (dialog, which) -> {
@@ -87,10 +87,12 @@ public class MainActivity extends AppCompatActivity {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
                 })
-                .setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> showAccessibilityHelpDialog(this))
                 .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> finish())
-                .setCancelable(false)
-                .create();
+                .setCancelable(false);
+        if (getResources().getBoolean(R.bool.show_help_button)) {
+            promptBuilder.setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> showAccessibilityHelpDialog(this));
+        }
+        accessibilityPromptDialog = promptBuilder.create();
         accessibilityPromptDialog.show();
     }
 

@@ -421,29 +421,33 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         } else if (holder instanceof FooterViewHolder) {
             FooterViewHolder viewHolder = (FooterViewHolder) holder;
 
-            // "Made with ❤️ by reddfocus.org" with clickable link
-            String fullText = "Made with ❤️ by reddfocus.org";
-            SpannableString spannableString = new SpannableString(fullText);
-            int start = fullText.indexOf("reddfocus.org");
-            int end = start + "reddfocus.org".length();
-            ClickableSpan clickableSpan = new ClickableSpan() {
-                @Override
-                public void onClick(View widget) {
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
-                    context.startActivity(browserIntent);
-                }
-                @Override
-                public void updateDrawState(android.text.TextPaint ds) {
-                    ds.setUnderlineText(false);
-                    ds.setColor(viewHolder.footerText.getCurrentTextColor());
-                }
-            };
-            spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            viewHolder.footerText.setText(spannableString);
-            viewHolder.footerText.setMovementMethod(LinkMovementMethod.getInstance());
-            viewHolder.footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
+            if (context.getResources().getBoolean(R.bool.show_footer_branding)) {
+                // "Made with ❤️ by reddfocus.org" with clickable link
+                String fullText = "Made with ❤️ by reddfocus.org";
+                SpannableString spannableString = new SpannableString(fullText);
+                int start = fullText.indexOf("reddfocus.org");
+                int end = start + "reddfocus.org".length();
+                ClickableSpan clickableSpan = new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
+                        context.startActivity(browserIntent);
+                    }
+                    @Override
+                    public void updateDrawState(android.text.TextPaint ds) {
+                        ds.setUnderlineText(false);
+                        ds.setColor(viewHolder.footerText.getCurrentTextColor());
+                    }
+                };
+                spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                viewHolder.footerText.setText(spannableString);
+                viewHolder.footerText.setMovementMethod(LinkMovementMethod.getInstance());
+                viewHolder.footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
+            } else {
+                viewHolder.footerText.setVisibility(View.GONE);
+            }
 
-            // Recruitment message with clickable email
+            // Recruitment message with clickable email (always shown)
             String recruitmentFull = context.getString(R.string.recruitment_message);
             String email = "konrad.kollnig@maastrichtuniversity.nl";
             SpannableString recruitmentSpannable = new SpannableString(recruitmentFull);

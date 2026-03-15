@@ -1,0 +1,5 @@
+com.whatsapp##viewId=com.whatsapp:id/search_meta_ai_input_send_button##desc=##comment=Hide AI suggestions in search
+com.whatsapp##viewId=com.whatsapp:id/extended_mini_fab##desc=##comment=Hide AI button
+com.whatsapp##viewId=com.whatsapp:id/newsletter_directory_row_container##comment=Hide recommended channels
+com.whatsapp##path=android.view.ViewGroup[0]>android.widget.FrameLayout[1]##comment=Hide Updates button
+com.whatsapp##path=androidx.viewpager.widget.ViewPager[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.RelativeLayout[*]##comment=Hide channels

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="show_help_button">true</bool>
+    <bool name="show_footer_branding">true</bool>
+    <bool name="show_custom_rules_fab">true</bool>
+</resources>

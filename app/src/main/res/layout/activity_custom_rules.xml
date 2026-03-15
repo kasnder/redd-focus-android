@@ -17,7 +17,8 @@
             android:background="@color/header_bg"
             android:elevation="4dp"
             app:titleTextAppearance="@style/ToolbarTitleTextRegular"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+            android:theme="@style/ToolbarTheme" />
 
     </com.google.android.material.appbar.AppBarLayout>
 

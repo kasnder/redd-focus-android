@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GMWay Lite</string>
+    <string name="accessibility_service_description">GMWay Lite</string>
+    <string name="enable_service">Enable GMWay Lite</string>
+    <string name="onboarding_step2_onestep">Tap on GMWay Lite</string>
+    <string name="onboarding_step3_twostep">Tap on GMWay Lite</string>
+    <string name="picker_notification_title">GMWay Lite is active</string>
+    <string name="accessibility_prompt_title">Enable GMWay Lite</string>
+    <string name="accessibility_prompt_message">To hide elements, GMWay Lite needs accessibility access. Use at your own risk.</string>
+    <string name="accessibility_help_title">How to enable GMWay Lite</string>
+    <string name="picker_intro_message">This feature lets you pick and hide any UI element in other apps.\n\nAfter enabling, you\'ll see a notification that lets you start the element picker from any app.\n\nTo use it, GMWay Lite needs permission to show notifications.</string>
+</resources>
