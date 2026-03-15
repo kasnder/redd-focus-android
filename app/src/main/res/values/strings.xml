@@ -65,6 +65,8 @@
     <string name="picker_deeper">▼ Deeper</string>
     <string name="picker_shallower">▲ Shallower</string>
     <string name="picker_block">✓ Block</string>
+    <string name="picker_block_all">✓ Block All</string>
+    <string name="picker_confirm_all_title">Block all elements like this?</string>
     <string name="picker_cancel">✕ Cancel</string>
     <string name="picker_move">↕ Move</string>
     <string name="picker_no_element">No element found at this position</string>

@@ -280,10 +280,11 @@ public class DistractionControlService extends AccessibilityService {
 
         // Handle path-based rules at the root level
         if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
-            AccessibilityNodeInfo target = matchPath(root, rule.targetPath);
-            if (target != null) {
+            List<AccessibilityNodeInfo> targets = matchPaths(root, rule.targetPath);
+            for (int mi = 0; mi < targets.size(); mi++) {
+                AccessibilityNodeInfo target = targets.get(mi);
                 try {
-                    processTargetView(target, rule);
+                    processTargetView(target, rule, mi);
                 } finally {
                     if (target != root) {
                         target.recycle();
@@ -381,74 +382,111 @@ public class DistractionControlService extends AccessibilityService {
     /**
      * Match a path selector against the accessibility tree starting from root.
      * Path format: "ClassName[index]>ClassName[index]>..."
-     * Returns the node at the end of the path, or null if no match.
+     * A segment with [*] matches ALL children with that className (wildcard).
+     * Returns a list of matched nodes (may be empty).
      */
-    private AccessibilityNodeInfo matchPath(AccessibilityNodeInfo root, String path) {
+    private List<AccessibilityNodeInfo> matchPaths(AccessibilityNodeInfo root, String path) {
+        List<AccessibilityNodeInfo> empty = new ArrayList<>();
         if (root == null || path == null || path.isEmpty())
-            return null;
+            return empty;
 
         String[] segments = path.split(">");
-        AccessibilityNodeInfo current = root;
+
+        // Seed the walk with the root
+        List<AccessibilityNodeInfo> currentNodes = new ArrayList<>();
+        currentNodes.add(root);
 
         for (String segment : segments) {
             String className;
+            boolean isWildcard = false;
             int index = 0;
 
-            // Parse segment: "ClassName[index]" or just "ClassName"
+            // Parse segment: "ClassName[index]", "ClassName[*]", or just "ClassName"
             int bracketStart = segment.indexOf('[');
             if (bracketStart >= 0) {
                 className = segment.substring(0, bracketStart);
                 String indexStr = segment.substring(bracketStart + 1, segment.indexOf(']'));
-                try {
-                    index = Integer.parseInt(indexStr);
-                } catch (NumberFormatException e) {
-                    Log.w(TAG, "Invalid path index: " + indexStr);
-                    return null;
+                if ("*".equals(indexStr)) {
+                    isWildcard = true;
+                } else {
+                    try {
+                        index = Integer.parseInt(indexStr);
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "Invalid path index: " + indexStr);
+                        // Recycle non-root nodes before returning
+                        for (AccessibilityNodeInfo n : currentNodes) {
+                            if (n != root) n.recycle();
+                        }
+                        return empty;
+                    }
                 }
             } else {
                 className = segment;
             }
 
-            // Find the nth child with matching className
-            AccessibilityNodeInfo match = null;
-            int matchCount = 0;
-            for (int i = 0; i < current.getChildCount(); i++) {
-                AccessibilityNodeInfo child = current.getChild(i);
-                if (child == null)
-                    continue;
+            List<AccessibilityNodeInfo> nextNodes = new ArrayList<>();
 
-                CharSequence childClass = child.getClassName();
-                if (childClass != null && childClass.toString().equals(className)) {
-                    if (matchCount == index) {
-                        match = child;
-                        break;
+            for (AccessibilityNodeInfo current : currentNodes) {
+                if (isWildcard) {
+                    // Collect ALL children with matching className
+                    for (int i = 0; i < current.getChildCount(); i++) {
+                        AccessibilityNodeInfo child = current.getChild(i);
+                        if (child == null) continue;
+                        CharSequence childClass = child.getClassName();
+                        if (childClass != null && childClass.toString().equals(className)) {
+                            nextNodes.add(child);
+                        } else {
+                            child.recycle();
+                        }
                     }
-                    matchCount++;
+                } else {
+                    // Find the nth child with matching className
+                    AccessibilityNodeInfo match = null;
+                    int matchCount = 0;
+                    for (int i = 0; i < current.getChildCount(); i++) {
+                        AccessibilityNodeInfo child = current.getChild(i);
+                        if (child == null) continue;
+                        CharSequence childClass = child.getClassName();
+                        if (childClass != null && childClass.toString().equals(className)) {
+                            if (matchCount == index) {
+                                match = child;
+                                break;
+                            }
+                            matchCount++;
+                        }
+                        child.recycle();
+                    }
+                    if (match != null) {
+                        nextNodes.add(match);
+                    }
                 }
-                child.recycle();
+
+                // Recycle intermediate nodes (but never the root)
+                if (current != root) {
+                    current.recycle();
+                }
             }
 
-            if (match == null) {
-                return null;
+            currentNodes = nextNodes;
+            if (currentNodes.isEmpty()) {
+                return empty;
             }
-
-            // Move deeper (don't recycle root — caller owns it)
-            if (current != root) {
-                current.recycle();
-            }
-            current = match;
         }
 
-        return current;
+        return currentNodes;
     }
 
     private void processTargetView(AccessibilityNodeInfo node, FilterRule rule) {
+        processTargetView(node, rule, -1);
+    }
+
+    private void processTargetView(AccessibilityNodeInfo node, FilterRule rule, int matchIndex) {
         if (rule.targetViewId == null || rule.contentDescriptions == null || rule.contentDescriptions.isEmpty()
                 || rule.targetViewId.isEmpty()) {
             Rect bounds = new Rect();
             node.getBoundsInScreen(bounds);
             if (!bounds.isEmpty()) {
-                addOverlay(bounds, rule);
+                addOverlay(bounds, rule, matchIndex);
             }
             return;
         }
@@ -495,13 +533,19 @@ public class DistractionControlService extends AccessibilityService {
 
     /**
      * Build a unique key for a rule to identify its overlay.
+     * matchIndex distinguishes multiple matches of the same wildcard rule.
      */
-    private String getRuleKey(FilterRule rule) {
-        return rule.packageName + "::" + rule.ruleString;
+    private String getRuleKey(FilterRule rule, int matchIndex) {
+        String base = rule.packageName + "::" + rule.ruleString;
+        return matchIndex >= 0 ? base + "::" + matchIndex : base;
     }
 
     private void addOverlay(Rect area, FilterRule rule) {
-        String ruleKey = getRuleKey(rule);
+        addOverlay(area, rule, -1);
+    }
+
+    private void addOverlay(Rect area, FilterRule rule, int matchIndex) {
+        String ruleKey = getRuleKey(rule, matchIndex);
         activeRuleKeys.add(ruleKey);
 
         // Check if an overlay already exists for this rule

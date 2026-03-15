@@ -190,6 +190,120 @@ public class ElementPickerRuleGenerator {
         return "Unknown element";
     }
 
+    /**
+     * Generate a rule that blocks ALL elements like the selected one.
+     * Uses a wildcard [*] on the last path segment, or falls back to className=.
+     *
+     * @param node        The selected accessibility node
+     * @param rootNode    The root node of the window (for path generation)
+     * @param packageName The package name of the foreground app
+     * @param comment     User-provided comment (can be null)
+     * @return A rule string in the app's filter format
+     */
+    public static String generateRuleForAll(AccessibilityNodeInfo node, AccessibilityNodeInfo rootNode,
+                                             String packageName, String comment) {
+        StringBuilder rule = new StringBuilder(packageName);
+
+        String viewId = node.getViewIdResourceName();
+        CharSequence className = node.getClassName();
+
+        if (viewId != null && !viewId.isEmpty()) {
+            // viewId already matches all instances via findAccessibilityNodeInfosByViewId
+            rule.append("##viewId=").append(viewId);
+        } else {
+            // Try to generate a wildcard path
+            String wildcardPath = generatePathWithWildcard(node, rootNode);
+            if (wildcardPath != null) {
+                rule.append("##path=").append(wildcardPath);
+            } else if (className != null && className.length() > 0) {
+                // Fallback: match by className alone (matches all elements of this type)
+                rule.append("##className=").append(className.toString());
+            }
+        }
+
+        if (comment != null && !comment.isEmpty()) {
+            rule.append("##comment=").append(comment);
+        }
+
+        return rule.toString();
+    }
+
+    /**
+     * Generate a path string from root to the given node, with the LAST segment
+     * using a wildcard [*] instead of a specific index.
+     * This makes the rule match all siblings of the same class as the target.
+     *
+     * @param target   The target node
+     * @param rootNode The root of the accessibility tree
+     * @return A wildcard path string, or null if the path cannot be determined
+     */
+    public static String generatePathWithWildcard(AccessibilityNodeInfo target, AccessibilityNodeInfo rootNode) {
+        if (target == null || rootNode == null) return null;
+
+        // Build a list of ancestors from target up to root
+        List<AccessibilityNodeInfo> ancestors = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+
+        // Walk up the tree using getParent()
+        AccessibilityNodeInfo current = AccessibilityNodeInfo.obtain(target);
+        while (current != null) {
+            // Check if we've reached the root
+            if (nodeEquals(current, rootNode)) {
+                current.recycle();
+                break;
+            }
+
+            AccessibilityNodeInfo parent = current.getParent();
+            if (parent == null) {
+                current.recycle();
+                break;
+            }
+
+            // Find the index of current node among siblings with the same class
+            int indexAmongSameClass = 0;
+            CharSequence currentClass = current.getClassName();
+            if (currentClass != null) {
+                for (int i = 0; i < parent.getChildCount(); i++) {
+                    AccessibilityNodeInfo sibling = parent.getChild(i);
+                    if (sibling == null) continue;
+                    if (nodeEquals(sibling, current)) {
+                        sibling.recycle();
+                        break;
+                    }
+                    CharSequence siblingClass = sibling.getClassName();
+                    if (siblingClass != null && siblingClass.toString().equals(currentClass.toString())) {
+                        indexAmongSameClass++;
+                    }
+                    sibling.recycle();
+                }
+            }
+
+            ancestors.add(current);
+            indices.add(indexAmongSameClass);
+            current = parent;
+        }
+
+        if (ancestors.isEmpty()) return null;
+
+        // Build path from root to target (reverse the collected ancestors)
+        // Use [*] for the LAST segment (index 0 in the ancestors list = the target itself)
+        StringBuilder path = new StringBuilder();
+        for (int i = ancestors.size() - 1; i >= 0; i--) {
+            if (path.length() > 0) path.append(">");
+            CharSequence cls = ancestors.get(i).getClassName();
+            path.append(cls != null ? cls.toString() : "Unknown");
+            if (i == 0) {
+                // Last segment: use wildcard
+                path.append("[*]");
+            } else {
+                path.append("[").append(indices.get(i)).append("]");
+            }
+            ancestors.get(i).recycle();
+        }
+
+        return path.toString();
+    }
+
     private static String truncate(String s, int max) {
         if (s.length() <= max) return s;
         return s.substring(0, max - 1) + "…";

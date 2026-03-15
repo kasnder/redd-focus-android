@@ -245,6 +245,11 @@ public class ElementPickerOverlay {
         blockBtn.setOnClickListener(v -> confirmBlock());
         buttonRow.addView(blockBtn, createButtonParams());
 
+        // Block All button
+        Button blockAllBtn = createButton(service.getString(R.string.picker_block_all), Color.argb(200, 200, 80, 40), btnTextColor);
+        blockAllBtn.setOnClickListener(v -> confirmBlockAll());
+        buttonRow.addView(blockAllBtn, createButtonParams());
+
         // Move button
         Button moveBtn = createButton(service.getString(R.string.picker_move), Color.argb(200, 100, 100, 100), btnTextColor);
         moveBtn.setOnClickListener(v -> toggleControlBarPosition());
@@ -458,13 +463,30 @@ public class ElementPickerOverlay {
         String generatedRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, null);
 
         // Build confirmation UI as an overlay (can't use AlertDialog from a service easily)
-        showConfirmationOverlay(node, selectorDesc, generatedRule);
+        showConfirmationOverlay(node, selectorDesc, generatedRule, false);
+    }
+
+    /**
+     * Show a confirmation dialog for blocking ALL elements like the currently selected one.
+     */
+    private void confirmBlockAll() {
+        if (nodesAtPoint.isEmpty() || currentNodeIndex >= nodesAtPoint.size()) {
+            Toast.makeText(service, R.string.picker_no_element, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AccessibilityNodeInfo node = nodesAtPoint.get(currentNodeIndex);
+        String selectorDesc = "All similar elements";
+        String generatedRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode, currentPackageName, null);
+
+        // Build confirmation UI as an overlay (can't use AlertDialog from a service easily)
+        showConfirmationOverlay(node, selectorDesc, generatedRule, true);
     }
 
     /**
      * Show a confirmation overlay with rule preview and comment field.
      */
-    private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc, String generatedRule) {
+    private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc, String generatedRule, boolean isBlockAll) {
         boolean isDarkMode = (service.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
 
@@ -491,7 +513,7 @@ public class ElementPickerOverlay {
 
         // Title
         TextView title = new TextView(service);
-        title.setText(R.string.picker_confirm_title);
+        title.setText(isBlockAll ? R.string.picker_confirm_all_title : R.string.picker_confirm_title);
         title.setTextColor(textColor);
         title.setTextSize(18f);
         title.setPadding(0, 0, 0, dpToPx(12));
@@ -551,7 +573,12 @@ public class ElementPickerOverlay {
             if (comment.isEmpty()) {
                 comment = selectorDesc;
             }
-            String finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, comment);
+            String finalRule;
+            if (isBlockAll) {
+                finalRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode, currentPackageName, comment);
+            } else {
+                finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, comment);
+            }
             saveAndApplyRule(finalRule);
             removeSafely(container);
             hide();
