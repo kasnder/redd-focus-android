@@ -212,23 +212,18 @@ public class DistractionControlService extends AccessibilityService {
 
         String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
 
-        // Launcher and systemui are only in the package filter so we can
-        // detect home-screen / lock-screen transitions via WINDOW_STATE_CHANGED.
-        // Drop every other event type from them immediately to save battery.
-        if (packageName.equals("com.android.systemui") || isLauncherPackage(packageName)) {
+        // Our own app, launcher, and systemui never host rule targets.
+        // On WINDOW_STATE_CHANGED, cancel any queued processing and immediately
+        // destroy all overlays. All other event types are dropped outright.
+        if (packageName.equals(getPackageName())
+                || packageName.equals("com.android.systemui")
+                || isLauncherPackage(packageName)) {
             if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                 Log.d(TAG, "Clearing overlays due to " + packageName);
-                // Cancel any queued processEvent so it can't re-create overlays
-                // from a stale root window that hasn't fully transitioned yet
                 ui.removeCallbacks(processEvent);
                 forceClearAllOverlays();
             }
             return;
-        }
-
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                && packageName.equals(getPackageName())) {
-            return; // Ignore our own window state changes
         }
 
         if (!shouldProcessEvent(event))
