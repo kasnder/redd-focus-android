@@ -29,7 +29,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 
 /**
- * An accessibility service that helps control distractions by blocking specific content in Android apps
+ * An accessibility service that helps control distractions by blocking specific
+ * content in Android apps
  * using an ad-blocker style filter syntax.
  */
 public class DistractionControlService extends AccessibilityService {
@@ -98,10 +99,12 @@ public class DistractionControlService extends AccessibilityService {
      * This should be called whenever rules are modified in the UI.
      */
     public void updateRules() {
-        if (instance == null) return;
+        if (instance == null)
+            return;
         rules.clear();
         rules.addAll(config.getRules());
         clearAllOverlays();
+        configureAccessibilityService();
         Log.i(TAG, "Rules updated, now have " + rules.size() + " rule(s)");
     }
 
@@ -161,7 +164,18 @@ public class DistractionControlService extends AccessibilityService {
                 return;
             }
             info.flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+
+            // Dynamically set packages from enabled rules
+            Set<String> packages = new java.util.HashSet<>();
+            for (FilterRule rule : rules) {
+                if (rule.enabled) {
+                    packages.add(rule.packageName);
+                }
+            }
+            info.packageNames = packages.isEmpty() ? null : packages.toArray(new String[0]);
+
             setServiceInfo(info);
+            Log.i(TAG, "Package filter updated: " + packages);
         } catch (Exception e) {
             Log.e(TAG, "Error configuring accessibility service", e);
         }
@@ -174,12 +188,14 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private void updateDarkMode() {
-        isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        isDarkMode = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (instance == null) return;
+        if (instance == null)
+            return;
 
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
@@ -201,10 +217,12 @@ public class DistractionControlService extends AccessibilityService {
             }
         }
 
-        if (!shouldProcessEvent(event)) return;
+        if (!shouldProcessEvent(event))
+            return;
 
         // Skip normal rule processing when picker is active
-        if (pickerOverlay != null && pickerOverlay.isActive()) return;
+        if (pickerOverlay != null && pickerOverlay.isActive())
+            return;
 
         ui.removeCallbacks(processEvent);
         ui.post(processEvent);
@@ -215,17 +233,17 @@ public class DistractionControlService extends AccessibilityService {
         Intent intent = new Intent("android.intent.action.MAIN");
         intent.addCategory("android.intent.category.HOME");
         String str = localPackageManager
-                .resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
-                .activityInfo
-                .packageName;
+                .resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY).activityInfo.packageName;
         Log.e("Current launcher Package Name:", str);
         return packageName.equals(str);
     }
 
     private boolean shouldProcessEvent(AccessibilityEvent event) {
-        if (event == null) return false;
+        if (event == null)
+            return false;
         CharSequence pkg = event.getPackageName();
-        if (pkg == null) return false;
+        if (pkg == null)
+            return false;
 
         int eventType = event.getEventType();
         return (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -236,7 +254,8 @@ public class DistractionControlService extends AccessibilityService {
 
     private boolean hasMatchingRule(CharSequence packageName) {
         for (FilterRule rule : rules) {
-            if (rule.enabled && rule.matchesPackage(packageName)) return true;
+            if (rule.enabled && rule.matchesPackage(packageName))
+                return true;
         }
         return false;
     }
@@ -256,7 +275,8 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private void applyRule(FilterRule rule, AccessibilityNodeInfo root) {
-        if (root == null || !root.isVisibleToUser()) return;
+        if (root == null || !root.isVisibleToUser())
+            return;
 
         // Handle path-based rules at the root level
         if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
@@ -295,7 +315,8 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private void applyRuleRecursive(FilterRule rule, AccessibilityNodeInfo node) {
-        if (node == null || !node.isVisibleToUser()) return;
+        if (node == null || !node.isVisibleToUser())
+            return;
 
         if (isTargetView(node, rule)) {
             processTargetView(node, rule);
@@ -303,7 +324,8 @@ public class DistractionControlService extends AccessibilityService {
 
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo child = node.getChild(i);
-            if (child == null) continue;
+            if (child == null)
+                continue;
             try {
                 applyRuleRecursive(rule, child);
             } finally {
@@ -362,7 +384,8 @@ public class DistractionControlService extends AccessibilityService {
      * Returns the node at the end of the path, or null if no match.
      */
     private AccessibilityNodeInfo matchPath(AccessibilityNodeInfo root, String path) {
-        if (root == null || path == null || path.isEmpty()) return null;
+        if (root == null || path == null || path.isEmpty())
+            return null;
 
         String[] segments = path.split(">");
         AccessibilityNodeInfo current = root;
@@ -391,7 +414,8 @@ public class DistractionControlService extends AccessibilityService {
             int matchCount = 0;
             for (int i = 0; i < current.getChildCount(); i++) {
                 AccessibilityNodeInfo child = current.getChild(i);
-                if (child == null) continue;
+                if (child == null)
+                    continue;
 
                 CharSequence childClass = child.getClassName();
                 if (childClass != null && childClass.toString().equals(className)) {
@@ -419,7 +443,8 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private void processTargetView(AccessibilityNodeInfo node, FilterRule rule) {
-        if (rule.targetViewId == null || rule.contentDescriptions == null || rule.contentDescriptions.isEmpty() || rule.targetViewId.isEmpty()) {
+        if (rule.targetViewId == null || rule.contentDescriptions == null || rule.contentDescriptions.isEmpty()
+                || rule.targetViewId.isEmpty()) {
             Rect bounds = new Rect();
             node.getBoundsInScreen(bounds);
             if (!bounds.isEmpty()) {
@@ -430,7 +455,8 @@ public class DistractionControlService extends AccessibilityService {
 
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo child = node.getChild(i);
-            if (child == null) continue;
+            if (child == null)
+                continue;
             try {
                 if (subtreeContainsContentDescription(child, rule.contentDescriptions)) {
                     Rect bounds = new Rect();
@@ -446,16 +472,20 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private boolean subtreeContainsContentDescription(AccessibilityNodeInfo node, Set<String> targets) {
-        if (node == null) return false;
+        if (node == null)
+            return false;
 
         CharSequence desc = node.getContentDescription();
-        if (desc != null && targets.contains(desc.toString())) return true;
+        if (desc != null && targets.contains(desc.toString()))
+            return true;
 
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo child = node.getChild(i);
-            if (child == null) continue;
+            if (child == null)
+                continue;
             try {
-                if (subtreeContainsContentDescription(child, targets)) return true;
+                if (subtreeContainsContentDescription(child, targets))
+                    return true;
             } finally {
                 child.recycle();
             }
@@ -482,7 +512,8 @@ public class DistractionControlService extends AccessibilityService {
                 return;
             }
             // Bounds changed — reuse the existing overlay view
-            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
             if (!rule.blockTouches) {
                 flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
             }
@@ -510,7 +541,8 @@ public class DistractionControlService extends AccessibilityService {
         int color = rule.color;
 
         // Only change the default white color to black in dark mode
-        // If a color was explicitly specified in the rule (including white), keep it as is
+        // If a color was explicitly specified in the rule (including white), keep it as
+        // is
         if (color == Color.WHITE && isDarkMode && !rule.ruleString.contains("color=")) {
             color = Color.BLACK;
         }
@@ -583,7 +615,8 @@ public class DistractionControlService extends AccessibilityService {
      * Start picker mode: show the picker overlay and update the notification.
      */
     public void startPickerMode() {
-        if (pickerOverlay == null || pickerNotification == null) return;
+        if (pickerOverlay == null || pickerNotification == null)
+            return;
         Log.i(TAG, "Starting picker mode");
         clearAllOverlays();
         pickerOverlay.show();
@@ -594,7 +627,8 @@ public class DistractionControlService extends AccessibilityService {
      * Stop picker mode: hide the picker overlay and restore normal notification.
      */
     public void stopPickerMode() {
-        if (pickerOverlay == null || pickerNotification == null) return;
+        if (pickerOverlay == null || pickerNotification == null)
+            return;
         Log.i(TAG, "Stopping picker mode");
         pickerOverlay.hide();
         pickerNotification.showNotification();
