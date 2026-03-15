@@ -33,9 +33,15 @@ Rules follow a simple syntax with key-value pairs separated by `##`:
 ### Components:
 
 - `package-name`: The package name of the target app (e.g., `com.example.app`)
-- `viewId`: (Optional) The resource ID of the view to block
-- `desc`: (Optional) Pipe-separated list of content descriptions to match
+- **Targeting (use at least one)**:
+  - `path`: (Recommended) CSS-like path to the element (e.g., `android.widget.FrameLayout[0]>android.widget.TextView[*]`). `[*]` matches all elements of that type at that level.
+  - `viewId`: The resource ID of the view to block (e.g., `com.example:id/button`)
+  - `text`: Exact text content to match
+  - `className`: Exact Android class name to match (e.g., `android.widget.Button`)
+  - `desc`: Pipe-separated list of content descriptions to match
 - `color`: (Optional) Hex colour for the overlay (defaults to white #FFFFFF)
+- `blockTouches`: (Optional) Set to `true` (default) to block touches, or `false` to allow interaction
+- `comment`: (Optional) Notes for the rule
 
 ### Examples:
 

@@ -204,20 +204,22 @@ public class ElementPickerRuleGenerator {
                                              String packageName, String comment) {
         StringBuilder rule = new StringBuilder(packageName);
 
-        String viewId = node.getViewIdResourceName();
-        CharSequence className = node.getClassName();
-
-        if (viewId != null && !viewId.isEmpty()) {
-            // viewId already matches all instances via findAccessibilityNodeInfosByViewId
-            rule.append("##viewId=").append(viewId);
+        // Try to generate a wildcard path first, as it's the most reliable way to select "all like this"
+        String wildcardPath = generatePathWithWildcard(node, rootNode);
+        
+        if (wildcardPath != null) {
+            rule.append("##path=").append(wildcardPath);
         } else {
-            // Try to generate a wildcard path
-            String wildcardPath = generatePathWithWildcard(node, rootNode);
-            if (wildcardPath != null) {
-                rule.append("##path=").append(wildcardPath);
-            } else if (className != null && className.length() > 0) {
-                // Fallback: match by className alone (matches all elements of this type)
+            // Fallback 1: match by className alone (matches all elements of this type anywhere)
+            CharSequence className = node.getClassName();
+            if (className != null && className.length() > 0) {
                 rule.append("##className=").append(className.toString());
+            } else {
+                // Fallback 2: viewId (though this might only match one element depending on the app)
+                String viewId = node.getViewIdResourceName();
+                if (viewId != null && !viewId.isEmpty()) {
+                    rule.append("##viewId=").append(viewId);
+                }
             }
         }
 
