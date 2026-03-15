@@ -56,6 +56,17 @@ public class DistractionControlService extends AccessibilityService {
                 return;
             }
             try {
+                // If the active window no longer belongs to a rule-matched
+                // package (e.g. app switcher, recents, PiP, split-screen
+                // chrome) clear everything and stop. This catches transitions
+                // that don't fire a TYPE_WINDOW_STATE_CHANGED for the
+                // launcher or systemui.
+                CharSequence rootPkg = root.getPackageName();
+                if (rootPkg == null || !hasMatchingRule(rootPkg)) {
+                    forceClearAllOverlays();
+                    return;
+                }
+
                 // Track which rule keys are matched in this pass
                 activeRuleKeys.clear();
 
