@@ -29,16 +29,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 
     private static final String PREFS_NAME = "AppCollapseStates";
     private static final String KEY_FIRST_RUN = "first_run";
-    private static final String KEY_APP_EXPANDED = "app_expanded_";
 
     private final Context context;
     private final ServiceConfig config;
     private final PackageManager packageManager;
     private final List<Object> items = new ArrayList<>();
     private OnRuleStateChangedListener onRuleStateChangedListener;
-    private final Map<String, Boolean> appExpandedStates = new HashMap<>();
     private List<FilterRule> currentRules = new ArrayList<>();
-    private final SharedPreferences collapsePrefs;
 
     // Hardcoded app names for known packages
     private static final Map<String, String> KNOWN_APP_NAMES = new HashMap<>() {
@@ -51,7 +48,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     };
 
     // Hardcoded app icons for known packages
-    private static final Map<String, Integer> KNOWN_APP_ICONS = new HashMap<String, Integer>() {
+    private static final Map<String, Integer> KNOWN_APP_ICONS = new HashMap<>() {
         {
             put("com.whatsapp", R.drawable.ic_whatsapp);
             put("com.google.android.youtube", R.drawable.ic_youtube);
@@ -64,7 +61,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         this.context = context;
         this.config = config;
         this.packageManager = context.getPackageManager();
-        this.collapsePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences collapsePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
         // Check if this is first run
         if (collapsePrefs.getBoolean(KEY_FIRST_RUN, true)) {
@@ -73,12 +70,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // All apps will default to collapsed (false) on first run
         }
     }
-
-    public void setOnRuleStateChangedListener(OnRuleStateChangedListener listener) {
-        this.onRuleStateChangedListener = listener;
-    }
-
-
 
     public void setRules(List<FilterRule> rules) {
         this.currentRules = rules;
@@ -174,10 +165,10 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Try to get app info to check if installed
             boolean isInstalled = false;
             try {
-                ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
+                packageManager.getApplicationInfo(packageName, 0);
                 isInstalled = true;
             } catch (PackageManager.NameNotFoundException e) {
-                isInstalled = false;
+                // do nothing
             }
             final boolean finalIsInstalled = isInstalled;
 

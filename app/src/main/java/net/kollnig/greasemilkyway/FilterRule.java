@@ -5,7 +5,7 @@ import java.util.Set;
 /**
  * Represents a single content blocking rule.
  */
-class FilterRule {
+public class FilterRule {
     final String packageName;
     final String targetViewId;
     final Set<String> contentDescriptions;

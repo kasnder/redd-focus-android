@@ -25,8 +25,9 @@ import java.util.Set;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
 import android.content.IntentFilter;
+
+import androidx.core.content.ContextCompat;
 
 /**
  * An accessibility service that helps control distractions by blocking specific
@@ -162,7 +163,8 @@ public class DistractionControlService extends AccessibilityService {
             IntentFilter filter = new IntentFilter();
             filter.addAction(ElementPickerNotification.ACTION_START_PICKER);
             filter.addAction(ElementPickerNotification.ACTION_STOP_PICKER);
-            registerReceiver(pickerReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(
+                    this, pickerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
         } catch (Exception e) {
             Log.e(TAG, "Error initializing service", e);
         }
