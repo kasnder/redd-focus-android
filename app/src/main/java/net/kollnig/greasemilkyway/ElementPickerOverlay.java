@@ -1,7 +1,5 @@
 package net.kollnig.greasemilkyway;
 
-import android.app.AlertDialog;
-import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -21,7 +19,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,7 +44,7 @@ public class ElementPickerOverlay {
     private TextView infoText;            // Node info display
 
     // State
-    private List<AccessibilityNodeInfo> nodesAtPoint = new ArrayList<>();
+    private final List<AccessibilityNodeInfo> nodesAtPoint = new ArrayList<>();
     private int currentNodeIndex = 0;
     private String currentPackageName = "";
     private AccessibilityNodeInfo currentRootNode = null;

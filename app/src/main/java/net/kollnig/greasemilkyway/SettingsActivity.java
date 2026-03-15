@@ -78,23 +78,17 @@ public class SettingsActivity extends AppCompatActivity {
         
         updateSubtitles();
 
-        findViewById(R.id.btn_custom_rules).setOnClickListener(v -> {
-            startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class));
-        });
+        findViewById(R.id.btn_custom_rules).setOnClickListener(v -> startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class)));
 
-        findViewById(R.id.btn_friction_gate).setOnClickListener(v -> {
-            showNumberPickerDialog("Friction Gate Words", "Choose number of words (0-15)", 0, 15, config.getFrictionWordCount(), newValue -> {
-                config.setFrictionWordCount(newValue);
-                updateSubtitles();
-            });
-        });
+        findViewById(R.id.btn_friction_gate).setOnClickListener(v -> showNumberPickerDialog("Friction Gate Words", "Choose number of words (0-15)", 0, 15, config.getFrictionWordCount(), newValue -> {
+            config.setFrictionWordCount(newValue);
+            updateSubtitles();
+        }));
 
-        findViewById(R.id.btn_pause_duration).setOnClickListener(v -> {
-            showNumberPickerDialog("Pause Duration", "Choose default pause in minutes (1-120)", 1, 120, config.getPauseDurationMins(), newValue -> {
-                config.setPauseDurationMins(newValue);
-                updateSubtitles();
-            });
-        });
+        findViewById(R.id.btn_pause_duration).setOnClickListener(v -> showNumberPickerDialog("Pause Duration", "Choose default pause in minutes (1-120)", 1, 120, config.getPauseDurationMins(), newValue -> {
+            config.setPauseDurationMins(newValue);
+            updateSubtitles();
+        }));
     }
 
     private void updateSubtitles() {
@@ -116,9 +110,7 @@ public class SettingsActivity extends AppCompatActivity {
             .setTitle(title)
             .setMessage(message)
             .setView(numberPicker)
-            .setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                callback.onNumberPicked(numberPicker.getValue());
-            })
+            .setPositiveButton(android.R.string.ok, (dialog, which) -> callback.onNumberPicked(numberPicker.getValue()))
             .setNegativeButton(android.R.string.cancel, null)
             .show();
     }
@@ -151,7 +143,7 @@ public class SettingsActivity extends AppCompatActivity {
                 int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
                 controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             View decorView = getWindow().getDecorView();
             int flags = decorView.getSystemUiVisibility();
             if (isLightMode) {

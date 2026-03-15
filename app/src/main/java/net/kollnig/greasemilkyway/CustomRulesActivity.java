@@ -110,9 +110,7 @@ public class CustomRulesActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                     .setTitle(R.string.picker_intro_title)
                     .setMessage(R.string.picker_intro_message)
-                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> {
-                        requestNotificationPermissionAndShow();
-                    })
+                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> requestNotificationPermissionAndShow())
                     .setNegativeButton(R.string.picker_intro_cancel, null)
                     .show();
         } else {
@@ -167,7 +165,7 @@ public class CustomRulesActivity extends AppCompatActivity {
                 int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
                 controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             View decorView = getWindow().getDecorView();
             int flags = decorView.getSystemUiVisibility();
             if (isLightMode) {

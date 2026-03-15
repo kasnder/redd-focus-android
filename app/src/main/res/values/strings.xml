@@ -102,4 +102,12 @@
 
     <!-- Recruitment -->
     <string name="recruitment_message">You like this app? Reach out to konrad.kollnig@maastrichtuniversity.nl to support our research</string>
+
+    <!-- Pause state labels -->
+    <string name="paused_until">⏳ Paused until %s</string>
+    <string name="rule_disabled">Disabled</string>
+
+    <!-- Settings subtitle defaults (overridden at runtime) -->
+    <string name="friction_gate_subtitle_default">Current: 0 words</string>
+    <string name="pause_duration_subtitle_default">Current: 10 mins</string>
 </resources>

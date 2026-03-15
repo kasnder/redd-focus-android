@@ -2,7 +2,6 @@ package net.kollnig.greasemilkyway;
 
 import android.content.Intent;
 import android.content.res.Configuration;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -29,7 +28,6 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private ServiceConfig config;
-    private RecyclerView rulesList;
     private RulesAdapter adapter;
 
     private Runnable onFrictionGatePassed;
@@ -61,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
         config = new ServiceConfig(this);
 
         // Initialize views
-        rulesList = findViewById(R.id.rules_list);
+        RecyclerView rulesList = findViewById(R.id.rules_list);
 
         // Setup RecyclerView
         rulesList.setLayoutManager(new LinearLayoutManager(this));
@@ -84,12 +82,8 @@ public class MainActivity extends AppCompatActivity {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
                 })
-                .setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> {
-                    showAccessibilityHelpDialog(this);
-                })
-                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> {
-                    finish();
-                })
+                .setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> showAccessibilityHelpDialog(this))
+                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> finish())
                 .setCancelable(false)
                 .show();
     }
@@ -143,9 +137,7 @@ public class MainActivity extends AppCompatActivity {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     activity.startActivity(intent);
                 })
-                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> {
-                    activity.finish();
-                })
+                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> activity.finish())
                 .setCancelable(false)
                 .show();
     }
@@ -238,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
                 int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
                 controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             View decorView = getWindow().getDecorView();
             int flags = decorView.getSystemUiVisibility();
             if (isLightMode) {

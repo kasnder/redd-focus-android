@@ -82,7 +82,7 @@
                     android:id="@+id/tv_friction_gate_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Current: 0 words"
+                    android:text="@string/friction_gate_subtitle_default"
                     android:textAppearance="?attr/textAppearanceBody2"
                     android:textColor="?android:attr/textColorSecondary"
                     android:layout_marginTop="4dp" />
@@ -109,7 +109,7 @@
                     android:id="@+id/tv_pause_duration_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Current: 10 mins"
+                    android:text="@string/pause_duration_subtitle_default"
                     android:textAppearance="?attr/textAppearanceBody2"
                     android:textColor="?android:attr/textColorSecondary"
                     android:layout_marginTop="4dp" />

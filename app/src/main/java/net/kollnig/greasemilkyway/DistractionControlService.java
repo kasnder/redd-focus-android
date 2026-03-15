@@ -2,6 +2,7 @@ package net.kollnig.greasemilkyway;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -34,6 +35,7 @@ import androidx.core.content.ContextCompat;
  * content in Android apps
  * using an ad-blocker style filter syntax.
  */
+@SuppressLint("AccessibilityPolicy")
 public class DistractionControlService extends AccessibilityService {
     private static final String TAG = "DistractionControlService";
     private static final int MAX_OVERLAY_COUNT = 100; // Prevent memory issues

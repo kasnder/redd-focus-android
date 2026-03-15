@@ -210,7 +210,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 if (pauseUntil > System.currentTimeMillis()) {
                     SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
                     String timeStr = sdf.format(new Date(pauseUntil));
-                    viewHolder.packageName.setText("\u23F3 Paused until " + timeStr);
+                    viewHolder.packageName.setText(context.getString(R.string.paused_until, timeStr));
                 } else {
                     viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
                 }
@@ -317,10 +317,10 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             } else if (rule.isPaused && rule.pausedUntil > System.currentTimeMillis()) {
                 SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
                 String timeStr = sdf.format(new Date(rule.pausedUntil));
-                viewHolder.ruleDetails.setText("\u23F3 Paused until " + timeStr);
+                viewHolder.ruleDetails.setText(context.getString(R.string.paused_until, timeStr));
                 viewHolder.ruleDetails.setVisibility(View.VISIBLE);
             } else if (!rule.enabled) {
-                viewHolder.ruleDetails.setText("Disabled");
+                viewHolder.ruleDetails.setText(R.string.rule_disabled);
                 viewHolder.ruleDetails.setVisibility(View.VISIBLE);
             } else {
                 viewHolder.ruleDetails.setVisibility(View.GONE);
@@ -351,9 +351,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                             viewHolder.ruleSwitch.setChecked(true); // Revert visually
                             
                             if (context instanceof MainActivity) {
-                                ((MainActivity) context).runWithFrictionGate("Disable Rule", () -> {
-                                    showPauseDialog(currentRule.packageName, currentRule);
-                                });
+                                ((MainActivity) context).runWithFrictionGate("Disable Rule", () -> showPauseDialog(currentRule.packageName, currentRule));
                             }
                             return;
                         }
@@ -376,36 +374,34 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             viewHolder.itemView.setOnLongClickListener(v -> {
                 if (rule.isCustom) {
                     if (context instanceof MainActivity) {
-                        ((MainActivity) context).runWithFrictionGate("Delete Rule", () -> {
-                            new AlertDialog.Builder(context)
-                                    .setTitle(R.string.delete_rule_title)
-                                    .setMessage(R.string.delete_rule_message)
-                                    .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
-                                        config.removeCustomRule(rule.ruleString);
-                                        
-                                        // Clean up the current rules list
-                                        currentRules.remove(rule);
-                                        
-                                        // Check if we need to disable the package if it was the last rule
-                                        boolean anyRulesStillEnabled = false;
-                                        for (FilterRule r : currentRules) {
-                                            if (r.packageName.equals(rule.packageName) && r.enabled) {
-                                                anyRulesStillEnabled = true;
-                                                break;
-                                            }
+                        ((MainActivity) context).runWithFrictionGate("Delete Rule", () -> new AlertDialog.Builder(context)
+                                .setTitle(R.string.delete_rule_title)
+                                .setMessage(R.string.delete_rule_message)
+                                .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
+                                    config.removeCustomRule(rule.ruleString);
+
+                                    // Clean up the current rules list
+                                    currentRules.remove(rule);
+
+                                    // Check if we need to disable the package if it was the last rule
+                                    boolean anyRulesStillEnabled = false;
+                                    for (FilterRule r : currentRules) {
+                                        if (r.packageName.equals(rule.packageName) && r.enabled) {
+                                            anyRulesStillEnabled = true;
+                                            break;
                                         }
-                                        if (!anyRulesStillEnabled) {
-                                            config.setPackageDisabled(rule.packageName, true);
-                                        }
-                                        
-                                        rebuildItemsList();
-                                        notifyService();
-                                        
-                                        Toast.makeText(context, R.string.rule_deleted, Toast.LENGTH_SHORT).show();
-                                    })
-                                    .setNegativeButton(R.string.delete_rule_cancel, null)
-                                    .show();
-                        });
+                                    }
+                                    if (!anyRulesStillEnabled) {
+                                        config.setPackageDisabled(rule.packageName, true);
+                                    }
+
+                                    rebuildItemsList();
+                                    notifyService();
+
+                                    Toast.makeText(context, R.string.rule_deleted, Toast.LENGTH_SHORT).show();
+                                })
+                                .setNegativeButton(R.string.delete_rule_cancel, null)
+                                .show());
                     }
                     return true;
                 } else {
@@ -534,11 +530,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     @Override
     public int getItemCount() {
         return items.size();
-    }
-
-
-    public interface OnRuleStateChangedListener {
-        void onRuleStateChanged(FilterRule rule);
     }
 
     // Item classes for different view types
