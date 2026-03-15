@@ -548,8 +548,10 @@ public class ElementPickerOverlay {
                 Color.argb(200, 200, 40, 40), Color.WHITE);
         confirmBtn.setOnClickListener(v -> {
             String comment = commentInput.getText().toString().trim();
-            String finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName,
-                    comment.isEmpty() ? null : comment);
+            if (comment.isEmpty()) {
+                comment = selectorDesc;
+            }
+            String finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, comment);
             saveAndApplyRule(finalRule);
             removeSafely(container);
             hide();

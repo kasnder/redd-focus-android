@@ -162,7 +162,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             List<FilterRule> packageRules = entry.getValue();
 
             // Sort rules by description
-            packageRules.sort((r1, r2) -> r1.description.compareToIgnoreCase(r2.description));
+            packageRules.sort((r1, r2) -> {
+                String d1 = r1.description != null ? r1.description : "";
+                String d2 = r2.description != null ? r2.description : "";
+                return d1.compareToIgnoreCase(d2);
+            });
 
             // Count only enabled rules
             int enabledCount = 0;
