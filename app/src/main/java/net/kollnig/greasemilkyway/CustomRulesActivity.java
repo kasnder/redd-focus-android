@@ -59,13 +59,7 @@ public class CustomRulesActivity extends AppCompatActivity {
 
         // Initialize views
         rulesEditor = findViewById(R.id.rules_editor);
-        
-        // Load existing custom rules
-        String[] customRules = config.getCustomRules();
-        if (customRules != null) {
-            rulesEditor.setText(String.join("\n", customRules));
-        }
-        
+
         // Setup README link (after loading rules to avoid any interference)
         TextView readmeLink = findViewById(R.id.readme_link);
         if (readmeLink != null) {
@@ -74,6 +68,16 @@ public class CustomRulesActivity extends AppCompatActivity {
 
         // Setup FAB to show element picker notification
         findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Reload rules from SharedPreferences every time the activity becomes visible.
+        // This ensures that rules added externally (e.g. via the element picker) are
+        // reflected in the editor instead of being silently overwritten on the next onPause.
+        String[] customRules = config.getCustomRules();
+        rulesEditor.setText(customRules != null ? String.join("\n", customRules) : "");
     }
 
     @Override
