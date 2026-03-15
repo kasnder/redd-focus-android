@@ -1,5 +1,3 @@
-com.google.android.youtube##path=androidx.drawerlayout.widget.DrawerLayout[0]>android.widget.FrameLayout[0]>android.widget.FrameLayout[0]>android.widget.HorizontalScrollView[0]>android.widget.LinearLayout[0]>android.widget.Button[1]##comment=Hide Shorts button
-com.google.android.youtube##viewId=com.google.android.youtube:id/watch_list##comment=Hide next-up video recommendations
 com.instagram.android##desc=reels tray container##comment=Hide Stories
 com.instagram.android##viewId=com.instagram.android:id/clips_tab##desc=##comment=Hide Reels button
 com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[3]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide search suggestions
