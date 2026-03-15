@@ -42,7 +42,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="72dp"
         android:contentDescription="@string/add_custom_rules"
         app:backgroundTint="@color/header_bg"
         app:tint="@color/primary_blue"
@@ -78,7 +79,7 @@
             android:layout_gravity="end|center_vertical"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/custom_rules_title"
-            android:src="@android:drawable/ic_menu_manage"
+            android:src="@drawable/ic_settings"
             android:scaleType="centerInside"
             android:padding="4dp"
             app:tint="?android:attr/textColorSecondary" />

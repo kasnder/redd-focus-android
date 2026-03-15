@@ -2,7 +2,6 @@ package net.kollnig.greasemilkyway;
 
 import android.Manifest;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -14,10 +13,10 @@ import android.text.Spanned;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ClickableSpan;
 import android.util.Log;
-import android.view.MenuItem;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowInsetsController;
-import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -134,14 +133,103 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showPickerNotification() {
-        DistractionControlService service = DistractionControlService.getInstance();
-        if (service != null) {
-            ElementPickerNotification notification = new ElementPickerNotification(this);
-            notification.showNotification();
-            Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
+        ElementPickerNotification notification = new ElementPickerNotification(this);
+        notification.showNotification();
+        Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
+    }
+
+    private void showAccessibilityPrompt() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.accessibility_prompt_title)
+                .setMessage(R.string.accessibility_prompt_message)
+                .setPositiveButton(R.string.accessibility_prompt_enable, (dialog, which) -> {
+                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                })
+                .setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> {
+                    showAccessibilityHelpDialog(this);
+                })
+                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> {
+                    finish();
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    static void showAccessibilityHelpDialog(AppCompatActivity activity) {
+        View helpView = LayoutInflater.from(activity).inflate(R.layout.dialog_accessibility_help, null);
+
+        // Detect device flow type
+        boolean usesTwoStepFlow = detectTwoStepFlow();
+
+        // Setup step text
+        TextView step1Text = helpView.findViewById(R.id.step1_text);
+        TextView step2Text = helpView.findViewById(R.id.step2_text);
+        TextView step3Text = helpView.findViewById(R.id.step3_text);
+        TextView step4Text = helpView.findViewById(R.id.step4_text);
+        TextView step5Text = helpView.findViewById(R.id.step5_text);
+
+        if (usesTwoStepFlow) {
+            step1Text.setText(R.string.onboarding_step1_twostep);
+            step2Text.setText(R.string.onboarding_step2_twostep);
+            step3Text.setText(R.string.onboarding_step3_twostep);
+            step4Text.setText(R.string.onboarding_step4_twostep);
+            step5Text.setText(R.string.onboarding_step5_twostep);
+            helpView.findViewById(R.id.step4_container).setVisibility(View.VISIBLE);
+            helpView.findViewById(R.id.step5_container).setVisibility(View.VISIBLE);
+            helpView.findViewById(R.id.arrow_step4_step5).setVisibility(View.VISIBLE);
         } else {
-            Toast.makeText(this, R.string.enable_service_first, Toast.LENGTH_SHORT).show();
+            step1Text.setText(R.string.onboarding_step1_onestep);
+            step2Text.setText(R.string.onboarding_step2_onestep);
+            step3Text.setText(R.string.onboarding_step3_onestep);
+            step4Text.setText(R.string.onboarding_step4_onestep);
+            helpView.findViewById(R.id.step4_container).setVisibility(View.VISIBLE);
+            helpView.findViewById(R.id.step5_container).setVisibility(View.GONE);
+            helpView.findViewById(R.id.arrow_step4_step5).setVisibility(View.GONE);
         }
+
+        // Setup step images
+        setupStepImage(activity, helpView, R.id.step1_image, 1, usesTwoStepFlow);
+        setupStepImage(activity, helpView, R.id.step2_image, 2, usesTwoStepFlow);
+        setupStepImage(activity, helpView, R.id.step3_image, 3, usesTwoStepFlow);
+        setupStepImage(activity, helpView, R.id.step4_image, 4, usesTwoStepFlow);
+        if (usesTwoStepFlow) {
+            setupStepImage(activity, helpView, R.id.step5_image, 5, usesTwoStepFlow);
+        }
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.accessibility_help_title)
+                .setView(helpView)
+                .setPositiveButton(R.string.accessibility_prompt_enable, (dialog, which) -> {
+                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(intent);
+                })
+                .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> {
+                    activity.finish();
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    private static void setupStepImage(AppCompatActivity activity, View parent, int imageViewId, int stepNumber, boolean usesTwoStepFlow) {
+        ImageView imageView = parent.findViewById(imageViewId);
+        String flowType = usesTwoStepFlow ? "twostep" : "onestep";
+        String resourceName = "step" + stepNumber + "_" + flowType;
+        int resourceId = activity.getResources().getIdentifier(resourceName, "drawable", activity.getPackageName());
+        if (resourceId != 0) {
+            imageView.setImageResource(resourceId);
+        }
+    }
+
+    private static boolean detectTwoStepFlow() {
+        String manufacturer = Build.MANUFACTURER.toLowerCase();
+        return manufacturer.contains("samsung") ||
+                manufacturer.contains("xiaomi") ||
+                manufacturer.contains("oppo") ||
+                manufacturer.contains("vivo") ||
+                manufacturer.contains("oneplus");
     }
 
     private void setupFooter() {
@@ -178,30 +266,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Reload settings to pick up any new custom rules
-        loadSettings();
-        // Update adapter to grey out items when service disabled
-        adapter.refreshServiceState();
-        // Check if accessibility service is enabled
-        String serviceName = getPackageName() + "/" + DistractionControlService.class.getCanonicalName();
-        int accessibilityEnabled = 0;
-        try {
-            accessibilityEnabled = Settings.Secure.getInt(
-                    getContentResolver(),
-                    Settings.Secure.ACCESSIBILITY_ENABLED);
-        } catch (Settings.SettingNotFoundException e) {
+
+        // Gate: if accessibility service is not enabled, prompt and block
+        if (!isAccessibilityServiceEnabled()) {
+            showAccessibilityPrompt();
             return;
         }
 
-        if (accessibilityEnabled == 1) {
-            String settingValue = Settings.Secure.getString(
-                    getContentResolver(),
-                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            // Rules are already reloaded at the start of onResume()
-        }
-
-        // Notify the adapter to update the service header
-        adapter.notifyItemChanged(0);  // Service header is always at position 0
+        // Reload settings to pick up any new custom rules
+        loadSettings();
     }
 
     private void loadSettings() {
@@ -282,15 +355,5 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return false;
-    }
-
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            onBackPressed();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 } 
