@@ -1,9 +1,15 @@
 package net.kollnig.greasemilkyway;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,6 +35,7 @@ import android.graphics.ColorMatrixColorFilter;
 public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int TYPE_APP_HEADER = 1;
     private static final int TYPE_RULE = 2;
+    private static final int TYPE_FOOTER = 3;
 
     private static final String PREFS_NAME = "AppCollapseStates";
     private static final String KEY_FIRST_RUN = "first_run";
@@ -79,12 +86,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     }
 
     private void rebuildItemsList() {
-        // Create a map of existing rules by their hash code for state preservation
-        Map<Integer, Boolean> existingStates = new HashMap<>();
+        // Preserve full rule state (enabled, paused, pausedUntil) from existing items
+        // so that external setRules() calls don't overwrite local changes
+        Map<Integer, FilterRule> existingRules = new HashMap<>();
         for (Object item : items) {
             if (item instanceof RuleItem) {
                 FilterRule rule = ((RuleItem) item).rule;
-                existingStates.put(rule.hashCode(), rule.enabled);
+                existingRules.put(rule.hashCode(), rule);
             }
         }
 
@@ -93,10 +101,12 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         // Group rules by package name
         Map<String, List<FilterRule>> rulesByPackage = new HashMap<>();
         for (FilterRule rule : currentRules) {
-            // Preserve the enabled state from existing rules
-            Boolean existingState = existingStates.get(rule.hashCode());
-            if (existingState != null) {
-                rule.enabled = existingState;
+            // Preserve state from existing rules
+            FilterRule existing = existingRules.get(rule.hashCode());
+            if (existing != null) {
+                rule.enabled = existing.enabled;
+                rule.isPaused = existing.isPaused;
+                rule.pausedUntil = existing.pausedUntil;
             }
             rulesByPackage.computeIfAbsent(rule.packageName, k -> new ArrayList<>()).add(rule);
         }
@@ -131,6 +141,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             }
         }
 
+        // Add footer at end of list
+        items.add(new FooterItem());
+
         notifyDataSetChanged();
     }
 
@@ -139,6 +152,8 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         Object item = items.get(position);
         if (item instanceof AppHeaderItem)
             return TYPE_APP_HEADER;
+        if (item instanceof FooterItem)
+            return TYPE_FOOTER;
         return TYPE_RULE;
     }
 
@@ -148,6 +163,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
         if (viewType == TYPE_APP_HEADER) {
             return new AppHeaderViewHolder(inflater.inflate(R.layout.item_app_group, parent, false));
+        }
+        if (viewType == TYPE_FOOTER) {
+            return new FooterViewHolder(inflater.inflate(R.layout.item_footer, parent, false));
         }
         return new RuleViewHolder(inflater.inflate(R.layout.item_rule, parent, false));
     }
@@ -192,7 +210,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 if (pauseUntil > System.currentTimeMillis()) {
                     SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
                     String timeStr = sdf.format(new Date(pauseUntil));
-                    viewHolder.packageName.setText("Paused until " + timeStr);
+                    viewHolder.packageName.setText("\u23F3 Paused until " + timeStr);
                 } else {
                     viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
                 }
@@ -296,10 +314,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Set subtitle text based on state
             if (rule.enabled) {
                 viewHolder.ruleDetails.setVisibility(View.GONE);
-            } else if (rule.isPaused) {
+            } else if (rule.isPaused && rule.pausedUntil > System.currentTimeMillis()) {
                 SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
                 String timeStr = sdf.format(new Date(rule.pausedUntil));
-                viewHolder.ruleDetails.setText("Paused until " + timeStr);
+                viewHolder.ruleDetails.setText("\u23F3 Paused until " + timeStr);
+                viewHolder.ruleDetails.setVisibility(View.VISIBLE);
+            } else if (!rule.enabled) {
+                viewHolder.ruleDetails.setText("Disabled");
                 viewHolder.ruleDetails.setVisibility(View.VISIBLE);
             } else {
                 viewHolder.ruleDetails.setVisibility(View.GONE);
@@ -392,6 +413,54 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     return true; // Consume the long click anyway to show the feedback
                 }
             });
+        } else if (holder instanceof FooterViewHolder) {
+            FooterViewHolder viewHolder = (FooterViewHolder) holder;
+
+            // "Made with ❤️ by reddfocus.org" with clickable link
+            String fullText = "Made with ❤️ by reddfocus.org";
+            SpannableString spannableString = new SpannableString(fullText);
+            int start = fullText.indexOf("reddfocus.org");
+            int end = start + "reddfocus.org".length();
+            ClickableSpan clickableSpan = new ClickableSpan() {
+                @Override
+                public void onClick(View widget) {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
+                    context.startActivity(browserIntent);
+                }
+                @Override
+                public void updateDrawState(android.text.TextPaint ds) {
+                    ds.setUnderlineText(false);
+                    ds.setColor(viewHolder.footerText.getCurrentTextColor());
+                }
+            };
+            spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            viewHolder.footerText.setText(spannableString);
+            viewHolder.footerText.setMovementMethod(LinkMovementMethod.getInstance());
+            viewHolder.footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
+
+            // Recruitment message with clickable email
+            String recruitmentFull = context.getString(R.string.recruitment_message);
+            String email = "konrad.kollnig@maastrichtuniversity.nl";
+            SpannableString recruitmentSpannable = new SpannableString(recruitmentFull);
+            int emailStart = recruitmentFull.indexOf(email);
+            int emailEnd = emailStart + email.length();
+            ClickableSpan emailSpan = new ClickableSpan() {
+                @Override
+                public void onClick(View widget) {
+                    Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
+                    emailIntent.setData(Uri.parse("mailto:" + email));
+                    context.startActivity(emailIntent);
+                }
+                @Override
+                public void updateDrawState(android.text.TextPaint ds) {
+                    ds.setUnderlineText(true);
+                    ds.setColor(viewHolder.recruitmentText.getCurrentTextColor());
+                }
+            };
+            recruitmentSpannable.setSpan(emailSpan, emailStart, emailEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            viewHolder.recruitmentText.setText(recruitmentSpannable);
+            viewHolder.recruitmentText.setMovementMethod(LinkMovementMethod.getInstance());
+            viewHolder.recruitmentText.setHighlightColor(android.graphics.Color.TRANSPARENT);
         }
     }
 
@@ -407,9 +476,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     if (rule != null) {
                         config.setRuleEnabled(rule, false);
                         config.setRulePausedUntil(rule, until);
+                        rule.enabled = false;
+                        rule.isPaused = true;
+                        rule.pausedUntil = until;
                     } else {
                         config.setPackageDisabled(packageName, true);
                         config.setPackagePausedUntil(packageName, until);
+                        // Mark all rules in this package as paused
+                        for (FilterRule r : currentRules) {
+                            if (r.packageName.equals(packageName)) {
+                                r.enabled = false;
+                                r.isPaused = true;
+                                r.pausedUntil = until;
+                                config.setRuleEnabled(r, false);
+                                config.setRulePausedUntil(r, until);
+                            }
+                        }
                     }
                     rebuildItemsList();
                     notifyService();
@@ -418,9 +500,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     if (rule != null) {
                         config.setRuleEnabled(rule, false);
                         config.setRulePausedUntil(rule, 0);
+                        rule.enabled = false;
+                        rule.isPaused = false;
+                        rule.pausedUntil = 0;
                     } else {
                         config.setPackageDisabled(packageName, true);
                         config.setPackagePausedUntil(packageName, 0);
+                        // Mark all rules in this package as disabled
+                        for (FilterRule r : currentRules) {
+                            if (r.packageName.equals(packageName)) {
+                                r.enabled = false;
+                                r.isPaused = false;
+                                r.pausedUntil = 0;
+                                config.setRuleEnabled(r, false);
+                                config.setRulePausedUntil(r, 0);
+                            }
+                        }
                     }
                     rebuildItemsList();
                     notifyService();
@@ -465,6 +560,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
     }
 
+    private static class FooterItem {
+    }
+
     static class AppHeaderViewHolder extends RecyclerView.ViewHolder {
         TextView appName;
         TextView packageName;
@@ -477,6 +575,17 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             packageName = itemView.findViewById(R.id.package_name);
             appIcon = itemView.findViewById(R.id.app_icon);
             packageSwitch = itemView.findViewById(R.id.package_switch);
+        }
+    }
+
+    static class FooterViewHolder extends RecyclerView.ViewHolder {
+        final TextView footerText;
+        final TextView recruitmentText;
+
+        FooterViewHolder(View itemView) {
+            super(itemView);
+            footerText = itemView.findViewById(R.id.footer_text);
+            recruitmentText = itemView.findViewById(R.id.recruitment_text);
         }
     }
 

@@ -86,6 +86,7 @@ public class DistractionControlService extends AccessibilityService {
                         overlayManager.removeOverlay(element.overlay, windowManager, ui);
                     }
                 }
+                removeSentinelsIfIdle();
             } finally {
                 root.recycle();
             }
@@ -96,6 +97,7 @@ public class DistractionControlService extends AccessibilityService {
     private ServiceConfig config;
     private LayoutDumper layoutDumper;
     private boolean isDarkMode;
+    private boolean sentinelPackagesActive;
     private String cachedLauncherPackage;
     private final Runnable updateRulesRunnable = this::updateRules;
 
@@ -192,6 +194,10 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private void configureAccessibilityService() {
+        configureAccessibilityService(false);
+    }
+
+    private void configureAccessibilityService(boolean includeSentinels) {
         try {
             AccessibilityServiceInfo info = getServiceInfo();
             if (info == null) {
@@ -208,18 +214,20 @@ public class DistractionControlService extends AccessibilityService {
                 }
             }
 
-            if (!packages.isEmpty()) {
-                // Always include launcher and systemui so we can detect
-                // home-screen / lock-screen transitions and clear overlays
+            if (!packages.isEmpty() && includeSentinels) {
+                // Include launcher and systemui so we can detect
+                // home-screen / lock-screen transitions and clear overlays.
+                // Only added when overlays are on screen to avoid
+                // unnecessary event delivery (battery).
                 packages.add("com.android.systemui");
                 String launcher = getLauncherPackage();
                 if (launcher != null) {
                     packages.add(launcher);
                 }
-                info.packageNames = packages.toArray(new String[0]);
-            } else {
-                info.packageNames = null;
             }
+
+            sentinelPackagesActive = includeSentinels;
+            info.packageNames = packages.isEmpty() ? null : packages.toArray(new String[0]);
 
             setServiceInfo(info);
             Log.i(TAG, "Package filter updated: " + packages);
@@ -669,16 +677,36 @@ public class DistractionControlService extends AccessibilityService {
 
         overlayManager.addOverlay(blocker, lp, windowManager, ui);
         blockedElements.put(ruleKey, new BlockedElement(blocker, new Rect(area)));
+
+        // First overlay drawn — start monitoring sentinel packages so we
+        // can detect transitions to the home screen / system UI.
+        if (!sentinelPackagesActive) {
+            configureAccessibilityService(true);
+        }
     }
 
     private void clearAllOverlays() {
         overlayManager.clearOverlays(windowManager, ui);
         blockedElements.clear();
+        removeSentinelsIfIdle();
     }
 
     private void forceClearAllOverlays() {
         overlayManager.forceClearOverlays(windowManager);
         blockedElements.clear();
+        removeSentinelsIfIdle();
+    }
+
+    /**
+     * Stop monitoring launcher / systemui once all overlays have been
+     * removed.  This avoids the IPC cost of receiving accessibility
+     * events from these very chatty packages when there is nothing to
+     * clear.  Sentinels are re-added the next time an overlay is drawn.
+     */
+    private void removeSentinelsIfIdle() {
+        if (sentinelPackagesActive && blockedElements.isEmpty()) {
+            configureAccessibilityService(false);
+        }
     }
 
     @Override

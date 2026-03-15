@@ -6,12 +6,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.method.LinkMovementMethod;
-import android.text.style.ClickableSpan;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowInsetsController;
 import android.widget.ImageView;
@@ -73,15 +71,6 @@ public class MainActivity extends AppCompatActivity {
         // Load current settings
         loadSettings();
 
-        // Setup footer with clickable link
-        setupFooter();
-
-        // Setup settings button in footer
-        findViewById(R.id.settings_button).setOnClickListener(v -> {
-            Intent intent = new Intent(this, SettingsActivity.class);
-            startActivity(intent);
-        });
-        
         // Setup navigation bar padding - reduces available height to push content above nav bar
         setupNavigationBarPadding();
     }
@@ -180,35 +169,20 @@ public class MainActivity extends AppCompatActivity {
                 manufacturer.contains("oneplus");
     }
 
-    private void setupFooter() {
-        TextView footerText = findViewById(R.id.footer_text);
-        
-        String fullText = "Made with ❤️ by reddfocus.org";
-        SpannableString spannableString = new SpannableString(fullText);
-        
-        int start = fullText.indexOf("reddfocus.org");
-        int end = start + "reddfocus.org".length();
-        
-        // Make "reddfocus.org" clickable (no special styling)
-        ClickableSpan clickableSpan = new ClickableSpan() {
-            @Override
-            public void onClick(View widget) {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
-                startActivity(browserIntent);
-            }
-            
-            @Override
-            public void updateDrawState(android.text.TextPaint ds) {
-                // Keep default text color, no underline
-                ds.setUnderlineText(false);
-                ds.setColor(footerText.getCurrentTextColor());
-            }
-        };
-        spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        
-        footerText.setText(spannableString);
-        footerText.setMovementMethod(LinkMovementMethod.getInstance());
-        footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_settings) {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            startActivity(intent);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     public void runWithFrictionGate(String contextTitle, Runnable action) {

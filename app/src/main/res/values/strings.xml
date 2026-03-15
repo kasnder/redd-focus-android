@@ -99,4 +99,7 @@
     <string name="pause_duration_title">Default Pause Duration</string>
     <string name="pause_duration_minutes">%d minutes</string>
     <string name="friction_gate_words">%d words</string>
+
+    <!-- Recruitment -->
+    <string name="recruitment_message">You like this app? Reach out to konrad.kollnig@maastrichtuniversity.nl to support our research</string>
 </resources>

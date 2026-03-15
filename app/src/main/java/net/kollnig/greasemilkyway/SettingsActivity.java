@@ -1,8 +1,6 @@
 package net.kollnig.greasemilkyway;
 
-import android.Manifest;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.MenuItem;
@@ -12,29 +10,22 @@ import android.widget.Toast;
 import android.app.AlertDialog;
 import android.widget.NumberPicker;
 
+import android.content.res.Configuration;
+import android.view.WindowInsetsController;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 
 public class SettingsActivity extends AppCompatActivity {
-    private static final String PREFS_NAME = "picker_prefs";
-    private static final String KEY_PICKER_INTRO_SHOWN = "picker_intro_shown";
 
     private ServiceConfig config;
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
-
-    private final ActivityResultLauncher<String> notificationPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-                if (isGranted) {
-                    showPickerNotification();
-                }
-                // Mark intro as shown regardless of grant result
-                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                        .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
-            });
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -55,11 +46,15 @@ public class SettingsActivity extends AppCompatActivity {
 
         config = new ServiceConfig(this);
 
+        setupNavigationBarColor();
+
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
+
+        setupWindowInsets();
 
         // Hide main content initially if friction gate is active
         findViewById(R.id.main).setVisibility(View.INVISIBLE);
@@ -82,9 +77,6 @@ public class SettingsActivity extends AppCompatActivity {
         tvPauseDurationSubtitle = findViewById(R.id.tv_pause_duration_subtitle);
         
         updateSubtitles();
-
-        // Setup FAB to show element picker notification
-        findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
 
         findViewById(R.id.btn_custom_rules).setOnClickListener(v -> {
             startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class));
@@ -131,47 +123,44 @@ public class SettingsActivity extends AppCompatActivity {
             .show();
     }
 
-    private void onFabClicked() {
-        boolean introShown = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .getBoolean(KEY_PICKER_INTRO_SHOWN, false);
+    private void setupWindowInsets() {
+        View rootLayout = findViewById(R.id.main);
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout, (v, insets) -> {
+            Insets statusBarInsets = insets.getInsets(WindowInsetsCompat.Type.statusBars());
+            Insets navBarInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars());
+            v.setPadding(
+                v.getPaddingLeft(),
+                statusBarInsets.top,
+                v.getPaddingRight(),
+                navBarInsets.bottom
+            );
+            return insets;
+        });
+    }
 
-        if (!introShown) {
-            // First time: show explanation dialog, then request notification permission
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(R.string.picker_intro_title)
-                    .setMessage(R.string.picker_intro_message)
-                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> {
-                        requestNotificationPermissionAndShow();
-                    })
-                    .setNegativeButton(R.string.picker_intro_cancel, null)
-                    .show();
-        } else {
-            // Subsequent use: check permission and show notification directly
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                    && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                requestNotificationPermissionAndShow();
-            } else {
-                showPickerNotification();
+    private void setupNavigationBarColor() {
+        int backgroundColor = getResources().getColor(R.color.background_main, getTheme());
+        getWindow().setNavigationBarColor(backgroundColor);
+
+        boolean isLightMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                != Configuration.UI_MODE_NIGHT_YES;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
+                controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
-        }
-    }
-
-    private void requestNotificationPermissionAndShow() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         } else {
-            // Pre-Android 13: no runtime permission needed
-            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                    .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
-            showPickerNotification();
+            View decorView = getWindow().getDecorView();
+            int flags = decorView.getSystemUiVisibility();
+            if (isLightMode) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            decorView.setSystemUiVisibility(flags);
         }
-    }
-
-    private void showPickerNotification() {
-        ElementPickerNotification notification = new ElementPickerNotification(this);
-        notification.showNotification();
-        Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
     }
 
     @Override

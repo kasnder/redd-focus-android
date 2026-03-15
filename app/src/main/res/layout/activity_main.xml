@@ -18,11 +18,9 @@
             android:elevation="4dp"
             app:logo="@drawable/ic_logo_header"
             app:logoAdjustViewBounds="true"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:paddingStart="24dp" 
-            android:paddingEnd="16dp" 
-            app:contentInsetStart="0dp" 
+            android:paddingStart="24dp"
+            android:paddingEnd="0dp"
+            app:contentInsetStart="0dp"
             app:titleMarginStart="4dp"
             app:titleTextAppearance="@style/ToolbarTitleText"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
@@ -37,40 +35,4 @@
         android:padding="16dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-    <!-- Footer -->
-    <FrameLayout
-        android:id="@+id/footer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="@color/background_main"
-        android:paddingTop="24dp"
-        android:paddingBottom="0dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior">
-
-        <TextView
-            android:id="@+id/footer_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:textSize="12sp"
-            android:textColor="?android:attr/textColorSecondary"
-            android:gravity="center" />
-
-        <ImageButton
-            android:id="@+id/settings_button"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_gravity="end|center_vertical"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/custom_rules_title"
-            android:src="@drawable/ic_settings"
-            android:scaleType="centerInside"
-            android:padding="4dp"
-            app:tint="?android:attr/textColorSecondary" />
-
-    </FrameLayout>
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout> 
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

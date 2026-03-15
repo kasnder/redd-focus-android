@@ -1,6 +1,8 @@
 package net.kollnig.greasemilkyway;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
@@ -15,12 +17,28 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 
 public class CustomRulesActivity extends AppCompatActivity {
+    private static final String PREFS_NAME = "picker_prefs";
+    private static final String KEY_PICKER_INTRO_SHOWN = "picker_intro_shown";
+
     private EditText rulesEditor;
     private ServiceConfig config;
+
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    showPickerNotification();
+                }
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                        .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +71,9 @@ public class CustomRulesActivity extends AppCompatActivity {
         if (readmeLink != null) {
             setupReadmeLink(readmeLink);
         }
+
+        // Setup FAB to show element picker notification
+        findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
     }
 
     @Override
@@ -79,6 +100,46 @@ public class CustomRulesActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, R.string.invalid_rules, Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void onFabClicked() {
+        boolean introShown = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_PICKER_INTRO_SHOWN, false);
+
+        if (!introShown) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.picker_intro_title)
+                    .setMessage(R.string.picker_intro_message)
+                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> {
+                        requestNotificationPermissionAndShow();
+                    })
+                    .setNegativeButton(R.string.picker_intro_cancel, null)
+                    .show();
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionAndShow();
+            } else {
+                showPickerNotification();
+            }
+        }
+    }
+
+    private void requestNotificationPermissionAndShow() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        } else {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            showPickerNotification();
+        }
+    }
+
+    private void showPickerNotification() {
+        ElementPickerNotification notification = new ElementPickerNotification(this);
+        notification.showNotification();
+        Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
     }
 
     @Override
