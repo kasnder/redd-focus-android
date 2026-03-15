@@ -281,12 +281,6 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Hide ruleDetails by default
             viewHolder.ruleDetails.setVisibility(View.GONE);
 
-            // If the rule has contentDescriptions (desc field), show the alert
-            if (!rule.contentDescriptions.isEmpty()) {
-                viewHolder.ruleDetails.setText(context.getString(R.string.rule_requires_english));
-                viewHolder.ruleDetails.setVisibility(View.VISIBLE);
-            }
-
             // Check if the package is disabled
             boolean isPackageDisabled = config.isPackageDisabled(rule.packageName);
 

@@ -1,15 +1,15 @@
-com.google.android.youtube##desc=Shorts##comment=Hide Shorts button
-com.google.android.youtube##viewId=com.google.android.youtube:id/watch_list##desc=Shorts|Go to channel##comment=Hide next-up video recommendations
+com.google.android.youtube##path=androidx.drawerlayout.widget.DrawerLayout[0]>android.widget.FrameLayout[0]>android.widget.FrameLayout[0]>android.widget.HorizontalScrollView[0]>android.widget.LinearLayout[0]>android.widget.Button[1]##comment=Hide Shorts button
+com.google.android.youtube##viewId=com.google.android.youtube:id/watch_list##comment=Hide next-up video recommendations
 com.instagram.android##desc=reels tray container##comment=Hide Stories
-com.instagram.android##viewId=com.instagram.android:id/carousel_media_group##comment=Hide feed images 2##blockTouches=false
 com.instagram.android##viewId=com.instagram.android:id/clips_tab##desc=##comment=Hide Reels button
-com.instagram.android##viewId=com.instagram.android:id/grid_card_layout_container##desc=##comment=Hide search suggestions 2/2
-com.instagram.android##viewId=com.instagram.android:id/layout_container##desc=##comment=Hide search suggestions 1/2
-com.instagram.android##viewId=com.instagram.android:id/media_group##comment=Hide feed images 1##blockTouches=false
+com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[3]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide search suggestions
+com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed 1/2
+com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed 2/2
 com.instagram.android##viewId=com.instagram.android:id/root_clips_layout##desc=##comment=Hide Reels layout
 com.linkedin.android##viewId=com.linkedin.android:id/feed_item_update_card##comment=Hide feed item##blockTouches=false
 com.linkedin.android##viewId=com.linkedin.android:id/tab_notifications##comment=Hide notifications
 com.whatsapp##viewId=com.whatsapp:id/search_meta_ai_input_send_button##desc=##comment=Hide AI suggestions in search
 com.whatsapp##viewId=com.whatsapp:id/extended_mini_fab##desc=##comment=Hide AI button
 com.whatsapp##viewId=com.whatsapp:id/newsletter_directory_row_container##comment=Hide recommended channels
-com.whatsapp##desc=Updates##comment=Hide Updates button
+com.whatsapp##path=android.view.ViewGroup[0]>android.widget.FrameLayout[1]##comment=Hide Updates button
+com.whatsapp##path=androidx.viewpager.widget.ViewPager[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.RelativeLayout[*]##comment=Hide channels
