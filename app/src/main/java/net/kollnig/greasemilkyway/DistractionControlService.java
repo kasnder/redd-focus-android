@@ -34,7 +34,6 @@ import android.content.IntentFilter;
  */
 public class DistractionControlService extends AccessibilityService {
     private static final String TAG = "DistractionControlService";
-    private static final int PROCESSING_DELAY_MS = 5;
     private static final int MAX_OVERLAY_COUNT = 100; // Prevent memory issues
 
     // Singleton instance
@@ -83,6 +82,7 @@ public class DistractionControlService extends AccessibilityService {
     };
     private ServiceConfig config;
     private LayoutDumper layoutDumper;
+    private boolean isDarkMode;
 
     /**
      * Get the current instance of the service.
@@ -118,6 +118,7 @@ public class DistractionControlService extends AccessibilityService {
             config = new ServiceConfig(this);
             rules.clear();
             rules.addAll(config.getRules());
+            updateDarkMode();
             configureAccessibilityService();
             Log.i(TAG, "Accessibility service initialized with " + rules.size() + " rule(s)");
 
@@ -167,6 +168,16 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateDarkMode();
+    }
+
+    private void updateDarkMode() {
+        isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (instance == null) return;
 
@@ -196,7 +207,7 @@ public class DistractionControlService extends AccessibilityService {
         if (pickerOverlay != null && pickerOverlay.isActive()) return;
 
         ui.removeCallbacks(processEvent);
-        ui.postDelayed(processEvent, PROCESSING_DELAY_MS);
+        ui.post(processEvent);
     }
 
     private boolean isLauncherPackage(String packageName) {
@@ -224,9 +235,10 @@ public class DistractionControlService extends AccessibilityService {
     }
 
     private boolean hasMatchingRule(CharSequence packageName) {
-        return rules.stream()
-                .filter(rule -> rule.enabled)
-                .anyMatch(rule -> rule.matchesPackage(packageName));
+        for (FilterRule rule : rules) {
+            if (rule.enabled && rule.matchesPackage(packageName)) return true;
+        }
+        return false;
     }
 
     private void processRootNode(AccessibilityNodeInfo root) {
@@ -243,23 +255,47 @@ public class DistractionControlService extends AccessibilityService {
         }
     }
 
-    private void applyRule(FilterRule rule, AccessibilityNodeInfo node) {
-        if (node == null || !node.isVisibleToUser()) return;
+    private void applyRule(FilterRule rule, AccessibilityNodeInfo root) {
+        if (root == null || !root.isVisibleToUser()) return;
 
         // Handle path-based rules at the root level
         if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
-            AccessibilityNodeInfo target = matchPath(node, rule.targetPath);
+            AccessibilityNodeInfo target = matchPath(root, rule.targetPath);
             if (target != null) {
                 try {
                     processTargetView(target, rule);
                 } finally {
-                    if (target != node) {
+                    if (target != root) {
                         target.recycle();
                     }
                 }
             }
             return;
         }
+
+        // Fast path: use framework index lookup for viewId-based rules
+        if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+            List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
+            if (matches != null) {
+                for (AccessibilityNodeInfo match : matches) {
+                    try {
+                        if (match.isVisibleToUser()) {
+                            processTargetView(match, rule);
+                        }
+                    } finally {
+                        match.recycle();
+                    }
+                }
+            }
+            return;
+        }
+
+        // Fallback: recursive tree walk for other rule types
+        applyRuleRecursive(rule, root);
+    }
+
+    private void applyRuleRecursive(FilterRule rule, AccessibilityNodeInfo node) {
+        if (node == null || !node.isVisibleToUser()) return;
 
         if (isTargetView(node, rule)) {
             processTargetView(node, rule);
@@ -269,7 +305,7 @@ public class DistractionControlService extends AccessibilityService {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
-                applyRule(rule, child);
+                applyRuleRecursive(rule, child);
             } finally {
                 child.recycle();
             }
@@ -471,8 +507,6 @@ public class DistractionControlService extends AccessibilityService {
 
         View blocker = new View(this);
 
-        // Check if dark mode is enabled
-        boolean isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         int color = rule.color;
 
         // Only change the default white color to black in dark mode
