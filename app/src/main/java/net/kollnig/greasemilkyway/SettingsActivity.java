@@ -1,6 +1,9 @@
 package net.kollnig.greasemilkyway;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
@@ -12,14 +15,27 @@ import android.widget.NumberPicker;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 
 public class SettingsActivity extends AppCompatActivity {
-    
+    private static final String PREFS_NAME = "picker_prefs";
+    private static final String KEY_PICKER_INTRO_SHOWN = "picker_intro_shown";
+
     private ServiceConfig config;
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
-    
+
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    showPickerNotification();
+                }
+                // Mark intro as shown regardless of grant result
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                        .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            });
+
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK) {
@@ -67,6 +83,9 @@ public class SettingsActivity extends AppCompatActivity {
         
         updateSubtitles();
 
+        // Setup FAB to show element picker notification
+        findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
+
         findViewById(R.id.btn_custom_rules).setOnClickListener(v -> {
             startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class));
         });
@@ -110,6 +129,49 @@ public class SettingsActivity extends AppCompatActivity {
             })
             .setNegativeButton(android.R.string.cancel, null)
             .show();
+    }
+
+    private void onFabClicked() {
+        boolean introShown = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_PICKER_INTRO_SHOWN, false);
+
+        if (!introShown) {
+            // First time: show explanation dialog, then request notification permission
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.picker_intro_title)
+                    .setMessage(R.string.picker_intro_message)
+                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> {
+                        requestNotificationPermissionAndShow();
+                    })
+                    .setNegativeButton(R.string.picker_intro_cancel, null)
+                    .show();
+        } else {
+            // Subsequent use: check permission and show notification directly
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionAndShow();
+            } else {
+                showPickerNotification();
+            }
+        }
+    }
+
+    private void requestNotificationPermissionAndShow() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        } else {
+            // Pre-Android 13: no runtime permission needed
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            showPickerNotification();
+        }
+    }
+
+    private void showPickerNotification() {
+        ElementPickerNotification notification = new ElementPickerNotification(this);
+        notification.showNotification();
+        Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
     }
 
     @Override
