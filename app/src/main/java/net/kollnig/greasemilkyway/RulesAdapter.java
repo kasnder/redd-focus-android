@@ -516,7 +516,8 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     rebuildItemsList();
                     notifyService();
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancel", (dialog, which) -> rebuildItemsList())
+                .setOnCancelListener(dialog -> rebuildItemsList())
                 .show();
     }
 
