@@ -43,6 +43,10 @@ public class ServiceConfig {
         String key = KEY_RULE_ENABLED + rule.hashCode();
         prefs.edit().putBoolean(key, enabled).apply();
     }
+
+    public boolean isRuleEnabled(FilterRule rule) {
+        return prefs.getBoolean(KEY_RULE_ENABLED + rule.hashCode(), false);
+    }
     
     public void setRulePausedUntil(FilterRule rule, long timestampMillis) {
         String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();

@@ -271,17 +271,26 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 config.setPackageDisabled(packageName, false);
                 config.setPackagePausedUntil(packageName, 0);
 
-                // When enabling app, if all rules are currently disabled, enable them all
-                boolean allRulesDisabled = true;
+                // Restore each rule's saved enabled state from SharedPreferences.
+                // In-memory state was set to false for UI during disable, but prefs were
+                // intentionally preserved, so this correctly restores individual selections.
+                // If no rule has ever been explicitly saved (first-time enable), enable all.
+                boolean anyRuleSavedEnabled = false;
                 for (FilterRule rule : currentRules) {
-                    if (rule.packageName.equals(packageName) && rule.enabled) {
-                        allRulesDisabled = false;
+                    if (rule.packageName.equals(packageName) && config.isRuleEnabled(rule)) {
+                        anyRuleSavedEnabled = true;
                         break;
                     }
                 }
-                if (allRulesDisabled) {
-                    for (FilterRule rule : currentRules) {
-                        if (rule.packageName.equals(packageName)) {
+                for (FilterRule rule : currentRules) {
+                    if (rule.packageName.equals(packageName)) {
+                        rule.isPaused = false;
+                        rule.pausedUntil = 0;
+                        if (anyRuleSavedEnabled) {
+                            // Restore the individually saved state
+                            rule.enabled = config.isRuleEnabled(rule);
+                        } else {
+                            // First-time enable: turn everything on
                             rule.enabled = true;
                             config.setRuleEnabled(rule, true);
                             config.setRulePausedUntil(rule, 0);
@@ -478,14 +487,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     } else {
                         config.setPackageDisabled(packageName, true);
                         config.setPackagePausedUntil(packageName, until);
-                        // Mark all rules in this package as paused
+                        // Update in-memory state for UI only; individual rule prefs are
+                        // intentionally left untouched so they can be restored on re-enable.
                         for (FilterRule r : currentRules) {
                             if (r.packageName.equals(packageName)) {
                                 r.enabled = false;
                                 r.isPaused = true;
                                 r.pausedUntil = until;
-                                config.setRuleEnabled(r, false);
-                                config.setRulePausedUntil(r, until);
                             }
                         }
                     }
@@ -502,14 +510,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     } else {
                         config.setPackageDisabled(packageName, true);
                         config.setPackagePausedUntil(packageName, 0);
-                        // Mark all rules in this package as disabled
+                        // Update in-memory state for UI only; individual rule prefs are
+                        // intentionally left untouched so they can be restored on re-enable.
                         for (FilterRule r : currentRules) {
                             if (r.packageName.equals(packageName)) {
                                 r.enabled = false;
                                 r.isPaused = false;
                                 r.pausedUntil = 0;
-                                config.setRuleEnabled(r, false);
-                                config.setRulePausedUntil(r, 0);
                             }
                         }
                     }
