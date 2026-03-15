@@ -30,6 +30,8 @@ public class MainActivity extends AppCompatActivity {
     private ServiceConfig config;
     private RulesAdapter adapter;
 
+    private AlertDialog accessibilityPromptDialog;
+
     private Runnable onFrictionGatePassed;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
@@ -74,7 +76,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showAccessibilityPrompt() {
-        new AlertDialog.Builder(this)
+        if (accessibilityPromptDialog != null && accessibilityPromptDialog.isShowing()) {
+            return;
+        }
+        accessibilityPromptDialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.accessibility_prompt_title)
                 .setMessage(R.string.accessibility_prompt_message)
                 .setPositiveButton(R.string.accessibility_prompt_enable, (dialog, which) -> {
@@ -85,7 +90,8 @@ public class MainActivity extends AppCompatActivity {
                 .setNeutralButton(R.string.accessibility_prompt_help, (dialog, which) -> showAccessibilityHelpDialog(this))
                 .setNegativeButton(R.string.picker_intro_cancel, (dialog, which) -> finish())
                 .setCancelable(false)
-                .show();
+                .create();
+        accessibilityPromptDialog.show();
     }
 
     static void showAccessibilityHelpDialog(AppCompatActivity activity) {
