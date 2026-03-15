@@ -1,28 +1,31 @@
 package net.kollnig.greasemilkyway;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.Html;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ClickableSpan;
-import android.text.style.StyleSpan;
 import android.util.Log;
 import android.view.MenuItem;
-import android.content.SharedPreferences;
 import android.view.View;
 import android.view.WindowInsetsController;
-import android.widget.Button;
-import android.widget.TextView;
 import android.widget.ImageButton;
-import android.graphics.Typeface;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -33,9 +36,22 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String PREFS_NAME = "picker_prefs";
+    private static final String KEY_PICKER_INTRO_SHOWN = "picker_intro_shown";
+
     private ServiceConfig config;
     private RecyclerView rulesList;
     private RulesAdapter adapter;
+
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    showPickerNotification();
+                }
+                // Mark intro as shown regardless of grant result
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                        .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,20 +77,71 @@ public class MainActivity extends AppCompatActivity {
         adapter = new RulesAdapter(this, config);
         rulesList.setAdapter(adapter);
 
-        // Setup custom rules button
-        findViewById(R.id.custom_rules_button).setOnClickListener(v -> {
-            Intent intent = new Intent(this, CustomRulesActivity.class);
-            startActivity(intent);
-        });
+        // Setup FAB to show element picker notification
+        findViewById(R.id.custom_rules_button).setOnClickListener(v -> onFabClicked());
 
         // Load current settings
         loadSettings();
-        
+
         // Setup footer with clickable link
         setupFooter();
+
+        // Setup settings button in footer
+        findViewById(R.id.settings_button).setOnClickListener(v -> {
+            Intent intent = new Intent(this, CustomRulesActivity.class);
+            startActivity(intent);
+        });
         
         // Setup navigation bar padding - reduces available height to push content above nav bar
         setupNavigationBarPadding();
+    }
+
+    private void onFabClicked() {
+        boolean introShown = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_PICKER_INTRO_SHOWN, false);
+
+        if (!introShown) {
+            // First time: show explanation dialog, then request notification permission
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.picker_intro_title)
+                    .setMessage(R.string.picker_intro_message)
+                    .setPositiveButton(R.string.picker_intro_enable, (dialog, which) -> {
+                        requestNotificationPermissionAndShow();
+                    })
+                    .setNegativeButton(R.string.picker_intro_cancel, null)
+                    .show();
+        } else {
+            // Subsequent use: check permission and show notification directly
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionAndShow();
+            } else {
+                showPickerNotification();
+            }
+        }
+    }
+
+    private void requestNotificationPermissionAndShow() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        } else {
+            // Pre-Android 13: no runtime permission needed
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit().putBoolean(KEY_PICKER_INTRO_SHOWN, true).apply();
+            showPickerNotification();
+        }
+    }
+
+    private void showPickerNotification() {
+        DistractionControlService service = DistractionControlService.getInstance();
+        if (service != null) {
+            ElementPickerNotification notification = new ElementPickerNotification(this);
+            notification.showNotification();
+            Toast.makeText(this, R.string.picker_notification_shown, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, R.string.enable_service_first, Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void setupFooter() {

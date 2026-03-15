@@ -80,4 +80,11 @@
     <string name="picker_dialog_cancel">Cancel</string>
     <string name="picker_dialog_confirm">Block</string>
     <string name="picker_rule_saved">Rule saved! Element will now be hidden.</string>
+
+    <!-- FAB / Picker intro dialog -->
+    <string name="picker_intro_title">Hide distracting elements</string>
+    <string name="picker_intro_message">This feature lets you pick and hide any UI element in other apps.\n\nAfter enabling, you\'ll see a notification that lets you start the element picker from any app.\n\nTo use it, ReDD Focus needs permission to show notifications.</string>
+    <string name="picker_intro_enable">Enable</string>
+    <string name="picker_intro_cancel">Not now</string>
+    <string name="picker_notification_shown">Element picker notification shown. You can now switch to any app and tap it to start picking.</string>
 </resources>

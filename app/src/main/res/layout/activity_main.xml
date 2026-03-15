@@ -71,6 +71,18 @@
             android:textColor="?android:attr/textColorSecondary"
             android:gravity="center" />
 
+        <ImageButton
+            android:id="@+id/settings_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end|center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/custom_rules_title"
+            android:src="@android:drawable/ic_menu_manage"
+            android:scaleType="centerInside"
+            android:padding="4dp"
+            app:tint="?android:attr/textColorSecondary" />
+
     </FrameLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout> 

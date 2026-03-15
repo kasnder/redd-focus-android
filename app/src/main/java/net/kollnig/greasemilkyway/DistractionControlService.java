@@ -129,9 +129,9 @@ public class DistractionControlService extends AccessibilityService {
             layoutDumper = new LayoutDumper();
             layoutDumper.start();
 
-            // Initialize picker notification
+            // Initialize picker notification (don't show it automatically;
+            // it will be shown on demand when user taps the FAB)
             pickerNotification = new ElementPickerNotification(this);
-            pickerNotification.showNotification();
 
             // Initialize picker overlay
             pickerOverlay = new ElementPickerOverlay(this, windowManager);
