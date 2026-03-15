@@ -82,7 +82,7 @@
 
     <!-- Accessibility service prompt -->
     <string name="accessibility_prompt_title">Enable ReDD Focus</string>
-    <string name="accessibility_prompt_message">To hide elements, ReDD Focus needs accessibility access.</string>
+    <string name="accessibility_prompt_message">To hide elements, ReDD Focus needs accessibility access. Use at your own risk.</string>
     <string name="accessibility_prompt_enable">Enable</string>
     <string name="accessibility_prompt_help">Need help?</string>
     <string name="accessibility_help_title">How to enable ReDD Focus</string>
