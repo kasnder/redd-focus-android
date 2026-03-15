@@ -17,6 +17,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.TextView;
+import android.app.AlertDialog;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -447,6 +448,48 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                             onRuleStateChangedListener.onRuleStateChanged(currentRule);
                         }
                     }
+                }
+            });
+
+            // Set up long click to delete custom rules
+            viewHolder.itemView.setOnLongClickListener(v -> {
+                if (rule.isCustom) {
+                    new AlertDialog.Builder(context)
+                            .setTitle(R.string.delete_rule_title)
+                            .setMessage(R.string.delete_rule_message)
+                            .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
+                                config.removeCustomRule(rule.ruleString);
+                                
+                                // Clean up the current rules list
+                                currentRules.remove(rule);
+                                
+                                // Check if we need to disable the package if it was the last rule
+                                boolean anyRulesStillEnabled = false;
+                                for (FilterRule r : currentRules) {
+                                    if (r.packageName.equals(rule.packageName) && r.enabled) {
+                                        anyRulesStillEnabled = true;
+                                        break;
+                                    }
+                                }
+                                if (!anyRulesStillEnabled) {
+                                    config.setPackageDisabled(rule.packageName, true);
+                                }
+                                
+                                rebuildItemsList();
+                                
+                                DistractionControlService service = DistractionControlService.getInstance();
+                                if (service != null) {
+                                    service.updateRules();
+                                }
+                                
+                                Toast.makeText(context, R.string.rule_deleted, Toast.LENGTH_SHORT).show();
+                            })
+                            .setNegativeButton(R.string.delete_rule_cancel, null)
+                            .show();
+                    return true;
+                } else {
+                    Toast.makeText(context, R.string.builtin_rule_no_delete, Toast.LENGTH_SHORT).show();
+                    return true; // Consume the long click anyway to show the feedback
                 }
             });
         }

@@ -71,7 +71,11 @@ public class ServiceConfig {
         // Add custom rules
         String[] customRules = getCustomRules();
         if (customRules != null) {
-            rules.addAll(ruleParser.parseRules(customRules));
+            List<FilterRule> parsedCustomRules = ruleParser.parseRules(customRules);
+            for (FilterRule rule : parsedCustomRules) {
+                rule.isCustom = true;
+            }
+            rules.addAll(parsedCustomRules);
         }
 
         // Apply saved enabled states
@@ -106,5 +110,28 @@ public class ServiceConfig {
         String existing = prefs.getString(KEY_CUSTOM_RULES, "");
         String updated = existing.isEmpty() ? ruleString : existing + "\n" + ruleString;
         prefs.edit().putString(KEY_CUSTOM_RULES, updated).apply();
+    }
+
+    /**
+     * Removes a custom rule exactly matching the given rule string.
+     */
+    public void removeCustomRule(String ruleString) {
+        String[] existing = getCustomRules();
+        if (existing == null) return;
+        
+        List<String> updated = new ArrayList<>();
+        boolean removed = false;
+        
+        for (String rule : existing) {
+            if (!removed && rule.equals(ruleString)) {
+                removed = true; // Only remove the first exact match
+                continue;
+            }
+            updated.add(rule);
+        }
+        
+        if (removed) {
+            saveCustomRules(updated.toArray(new String[0]));
+        }
     }
 }

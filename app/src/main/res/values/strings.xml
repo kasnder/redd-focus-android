@@ -16,6 +16,14 @@
     <string name="disable_all_rules_for_app">Disable all rules for this app</string>
     <string name="rule_requires_english">This rule may require English to be the main display language.</string>
     <string name="app_not_installed">App not installed</string>
+    
+    <!-- Rule Deletion -->
+    <string name="delete_rule_title">Delete custom rule?</string>
+    <string name="delete_rule_message">This custom rule will be permanently deleted.</string>
+    <string name="delete_rule_confirm">Delete</string>
+    <string name="delete_rule_cancel">Cancel</string>
+    <string name="rule_deleted">Rule deleted</string>
+    <string name="builtin_rule_no_delete">Built-in rules can\'t be deleted</string>
     <string name="need_help">Need help?</string>
     <string name="expand_help_content">Expand help content</string>
     <string name="collapse_help_content">Collapse help content</string>

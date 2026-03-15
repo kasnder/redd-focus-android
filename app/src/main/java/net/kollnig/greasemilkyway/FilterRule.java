@@ -17,6 +17,7 @@ class FilterRule {
     final String ruleString;
     final boolean blockTouches;
     boolean enabled;
+    boolean isCustom;
 
     FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
                String path, int color, String description, String ruleString, boolean blockTouches) {
@@ -31,6 +32,7 @@ class FilterRule {
         this.ruleString = ruleString;
         this.blockTouches = blockTouches;
         this.enabled = true;
+        this.isCustom = false;
     }
 
     boolean matchesPackage(CharSequence pkgName) {
