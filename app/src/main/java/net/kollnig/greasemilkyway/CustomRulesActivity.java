@@ -197,15 +197,16 @@ public class CustomRulesActivity extends AppCompatActivity {
             String fullText = getString(R.string.custom_rules_readme_link);
             SpannableString spannableString = new SpannableString(fullText);
             
-            int start = fullText.indexOf("README");
+            String linkText = "Custom Rules README";
+            int start = fullText.indexOf(linkText);
             if (start >= 0) {
-                int end = start + "README".length();
+                int end = start + linkText.length();
                 
                 // Make "README" clickable (no special styling)
                 ClickableSpan clickableSpan = new ClickableSpan() {
                     @Override
                     public void onClick(View widget) {
-                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kasnder/GreaseMilkyway/blob/main/README.md"));
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kasnder/GreaseMilkyway/blob/main/docs/CUSTOM_RULES.md"));
                         startActivity(browserIntent);
                     }
                     

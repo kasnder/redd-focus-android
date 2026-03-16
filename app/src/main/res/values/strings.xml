@@ -8,7 +8,7 @@
     <string name="enable_service_first">Please enable the accessibility service first</string>
     <string name="custom_rules_title">Custom Rules (Expert Mode)</string>
     <string name="custom_rules_hint">⚠️ Expert Mode ⚠️\n\nThis feature is for advanced users who understand Android view IDs and content descriptions.\n\nEnter your custom rules below, one per line.\n\nExample:\ncom.example.app##viewId=com.example.app:id/distracting_element##desc=Distracting content##color=FFFFFF</string>
-    <string name="custom_rules_readme_link">For more information, see the README</string>
+    <string name="custom_rules_readme_link">For advanced rule syntax and examples, see the Custom Rules README</string>
     <string name="save_rules">Save Rules</string>
     <string name="rules_saved">Rules saved successfully</string>
     <string name="invalid_rules">Invalid rules format. Please check your rules and try again.</string>
