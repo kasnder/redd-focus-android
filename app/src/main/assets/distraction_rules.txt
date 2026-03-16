@@ -4,6 +4,7 @@ com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widge
 com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed 1/2
 com.instagram.android##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed 2/2
 com.instagram.android##viewId=com.instagram.android:id/root_clips_layout##desc=##comment=Hide Reels layout
+com.instagram.android##viewId=android:id/list##comment=Hide main screen
 com.linkedin.android##viewId=com.linkedin.android:id/feed_item_update_card##comment=Hide feed item##blockTouches=false
 com.linkedin.android##viewId=com.linkedin.android:id/tab_notifications##comment=Hide notifications
 com.whatsapp##viewId=com.whatsapp:id/search_meta_ai_input_send_button##desc=##comment=Hide AI suggestions in search
