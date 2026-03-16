@@ -1,5 +1,6 @@
-package net.kollnig.greasemilkyway;
+package net.kollnig.distractionlib;
 
+import android.accessibilityservice.AccessibilityService;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -33,17 +34,22 @@ import java.util.List;
 public class ElementPickerOverlay {
     private static final String TAG = "ElementPickerOverlay";
 
-    private final DistractionControlService service;
+    public interface Listener {
+        void onRuleChosen(String ruleString);
+
+        void onPickerDismissed();
+    }
+
+    private final AccessibilityService service;
     private final WindowManager windowManager;
+    private final Listener listener;
     private final Handler ui = new Handler(Looper.getMainLooper());
 
-    // Overlay views
-    private View touchInterceptor;        // Full-screen transparent view to capture touches
-    private View highlightView;           // Colored border highlight on selected element
-    private LinearLayout controlBar;      // Bottom bar with action buttons
-    private TextView infoText;            // Node info display
+    private View touchInterceptor;
+    private View highlightView;
+    private LinearLayout controlBar;
+    private TextView infoText;
 
-    // State
     private final List<AccessibilityNodeInfo> nodesAtPoint = new ArrayList<>();
     private int currentNodeIndex = 0;
     private String currentPackageName = "";
@@ -51,18 +57,17 @@ public class ElementPickerOverlay {
     private boolean isActive = false;
     private boolean isAtBottom = true;
 
-    public ElementPickerOverlay(DistractionControlService service, WindowManager windowManager) {
+    public ElementPickerOverlay(AccessibilityService service, WindowManager windowManager,
+                                Listener listener) {
         this.service = service;
         this.windowManager = windowManager;
+        this.listener = listener;
     }
 
     public boolean isActive() {
         return isActive;
     }
 
-    /**
-     * Show the picker overlay on screen.
-     */
     public void show() {
         if (isActive) return;
         isActive = true;
@@ -79,9 +84,6 @@ public class ElementPickerOverlay {
         });
     }
 
-    /**
-     * Remove the picker overlay from screen.
-     */
     public void hide() {
         isActive = false;
         ui.post(() -> {
@@ -126,23 +128,17 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Creates the full-screen transparent overlay that intercepts all touches.
-     */
     private void createTouchInterceptor() {
         touchInterceptor = new View(service) {
             @Override
             public boolean onTouchEvent(MotionEvent event) {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    float x = event.getRawX();
-                    float y = event.getRawY();
-                    handleTap(x, y);
+                    handleTap(event.getRawX(), event.getRawY());
                 }
                 return true;
             }
         };
 
-        // Semi-transparent background to indicate picker mode
         touchInterceptor.setBackgroundColor(Color.argb(40, 0, 0, 0));
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -158,9 +154,6 @@ public class ElementPickerOverlay {
         windowManager.addView(touchInterceptor, params);
     }
 
-    /**
-     * Creates the highlight view used to outline the currently selected element.
-     */
     private void createHighlightView() {
         highlightView = new View(service) {
             private final Paint borderPaint = new Paint() {{
@@ -184,8 +177,7 @@ public class ElementPickerOverlay {
         highlightView.setVisibility(View.GONE);
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                0, 0,
-                0, 0,
+                0, 0, 0, 0,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -197,9 +189,6 @@ public class ElementPickerOverlay {
         windowManager.addView(highlightView, params);
     }
 
-    /**
-     * Creates the bottom control bar with action buttons and info text.
-     */
     private void createControlBar() {
         boolean isDarkMode = (service.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -214,7 +203,6 @@ public class ElementPickerOverlay {
         int pad = dpToPx(12);
         controlBar.setPadding(pad, pad, pad, pad);
 
-        // Info text
         infoText = new TextView(service);
         infoText.setTextColor(textColor);
         infoText.setTextSize(13f);
@@ -222,42 +210,38 @@ public class ElementPickerOverlay {
         infoText.setPadding(0, 0, 0, dpToPx(8));
         controlBar.addView(infoText);
 
-        // Button row
         LinearLayout buttonRow = new LinearLayout(service);
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setGravity(Gravity.CENTER);
 
-        // Deeper button
-        Button deeperBtn = createButton(service.getString(R.string.picker_deeper), Color.argb(200, 60, 60, 60), btnTextColor);
+        Button deeperBtn = createButton(service.getString(R.string.picker_deeper),
+                Color.argb(200, 60, 60, 60), btnTextColor);
         deeperBtn.setOnClickListener(v -> cycleDeeper());
         buttonRow.addView(deeperBtn, createButtonParams());
 
-        // Shallower button
-        Button shallowerBtn = createButton(service.getString(R.string.picker_shallower), Color.argb(200, 60, 60, 60), btnTextColor);
+        Button shallowerBtn = createButton(service.getString(R.string.picker_shallower),
+                Color.argb(200, 60, 60, 60), btnTextColor);
         shallowerBtn.setOnClickListener(v -> cycleShallower());
         buttonRow.addView(shallowerBtn, createButtonParams());
 
-        // Block button
-        Button blockBtn = createButton(service.getString(R.string.picker_block), Color.argb(200, 200, 40, 40), btnTextColor);
+        Button blockBtn = createButton(service.getString(R.string.picker_block),
+                Color.argb(200, 200, 40, 40), btnTextColor);
         blockBtn.setOnClickListener(v -> confirmBlock());
         buttonRow.addView(blockBtn, createButtonParams());
 
-        // Block All button
-        Button blockAllBtn = createButton(service.getString(R.string.picker_block_all), Color.argb(200, 200, 80, 40), btnTextColor);
+        Button blockAllBtn = createButton(service.getString(R.string.picker_block_all),
+                Color.argb(200, 200, 80, 40), btnTextColor);
         blockAllBtn.setOnClickListener(v -> confirmBlockAll());
         buttonRow.addView(blockAllBtn, createButtonParams());
 
-        // Move button
-        Button moveBtn = createButton(service.getString(R.string.picker_move), Color.argb(200, 100, 100, 100), btnTextColor);
+        Button moveBtn = createButton(service.getString(R.string.picker_move),
+                Color.argb(200, 100, 100, 100), btnTextColor);
         moveBtn.setOnClickListener(v -> toggleControlBarPosition());
         buttonRow.addView(moveBtn, createButtonParams());
 
-        // Cancel button
-        Button cancelBtn = createButton(service.getString(R.string.picker_cancel), Color.argb(200, 100, 100, 100), btnTextColor);
-        cancelBtn.setOnClickListener(v -> {
-            hide();
-            service.stopPickerMode();
-        });
+        Button cancelBtn = createButton(service.getString(R.string.picker_cancel),
+                Color.argb(200, 100, 100, 100), btnTextColor);
+        cancelBtn.setOnClickListener(v -> dismissPicker());
         buttonRow.addView(cancelBtn, createButtonParams());
 
         controlBar.addView(buttonRow);
@@ -275,13 +259,16 @@ public class ElementPickerOverlay {
         windowManager.addView(controlBar, params);
     }
 
-    /**
-     * Toggles the control bar position between top and bottom.
-     */
+    private void dismissPicker() {
+        hide();
+        listener.onPickerDismissed();
+    }
+
     private void toggleControlBarPosition() {
         if (controlBar != null) {
             isAtBottom = !isAtBottom;
-            WindowManager.LayoutParams params = (WindowManager.LayoutParams) controlBar.getLayoutParams();
+            WindowManager.LayoutParams params =
+                    (WindowManager.LayoutParams) controlBar.getLayoutParams();
             params.gravity = (isAtBottom ? Gravity.BOTTOM : Gravity.TOP) | Gravity.START;
             windowManager.updateViewLayout(controlBar, params);
         }
@@ -307,10 +294,6 @@ public class ElementPickerOverlay {
         return params;
     }
 
-    /**
-     * Handle a tap at the given screen coordinates.
-     * Finds all accessibility nodes at that point and selects the deepest one.
-     */
     private void handleTap(float x, float y) {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null) {
@@ -320,10 +303,7 @@ public class ElementPickerOverlay {
 
         try {
             currentPackageName = root.getPackageName() != null ? root.getPackageName().toString() : "";
-
-            // Collect all nodes whose bounds contain the tap point
             recycleNodes();
-            // Store a copy of the root for path generation
             currentRootNode = AccessibilityNodeInfo.obtain(root);
             collectNodesAtPoint(root, (int) x, (int) y, nodesAtPoint);
 
@@ -333,7 +313,6 @@ public class ElementPickerOverlay {
                 return;
             }
 
-            // Start from the deepest (last) element
             currentNodeIndex = nodesAtPoint.size() - 1;
             highlightCurrentNode();
         } catch (Exception e) {
@@ -343,21 +322,15 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Recursively collect all nodes whose bounds contain the given point.
-     * Nodes are added in tree order (parent before children), so deeper nodes come later.
-     */
     private void collectNodesAtPoint(AccessibilityNodeInfo node, int x, int y,
-                                      List<AccessibilityNodeInfo> result) {
+                                     List<AccessibilityNodeInfo> result) {
         if (node == null || !node.isVisibleToUser()) return;
 
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
 
         if (bounds.contains(x, y)) {
-            // Create a copy so we can keep it after the parent is recycled
-            AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(node);
-            result.add(copy);
+            result.add(AccessibilityNodeInfo.obtain(node));
         }
 
         for (int i = 0; i < node.getChildCount(); i++) {
@@ -372,9 +345,6 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Cycle to the next deeper node at the current touch point.
-     */
     private void cycleDeeper() {
         if (nodesAtPoint.isEmpty()) return;
         if (currentNodeIndex < nodesAtPoint.size() - 1) {
@@ -385,9 +355,6 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Cycle to the next shallower node at the current touch point.
-     */
     private void cycleShallower() {
         if (nodesAtPoint.isEmpty()) return;
         if (currentNodeIndex > 0) {
@@ -398,9 +365,6 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Highlight the currently selected node and show its info.
-     */
     private void highlightCurrentNode() {
         if (nodesAtPoint.isEmpty() || currentNodeIndex >= nodesAtPoint.size()) {
             hideHighlight();
@@ -411,9 +375,9 @@ public class ElementPickerOverlay {
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
 
-        // Update highlight position and size
         if (highlightView != null && !bounds.isEmpty()) {
-            WindowManager.LayoutParams params = (WindowManager.LayoutParams) highlightView.getLayoutParams();
+            WindowManager.LayoutParams params =
+                    (WindowManager.LayoutParams) highlightView.getLayoutParams();
             params.x = bounds.left;
             params.y = bounds.top;
             params.width = bounds.width();
@@ -428,7 +392,6 @@ public class ElementPickerOverlay {
             }
         }
 
-        // Update info text
         String description = ElementPickerRuleGenerator.describeNode(node);
         String depth = "(" + (currentNodeIndex + 1) + "/" + nodesAtPoint.size() + ")";
         updateInfo(depth + " " + description);
@@ -446,9 +409,6 @@ public class ElementPickerOverlay {
         }
     }
 
-    /**
-     * Show a confirmation dialog for blocking the currently selected element.
-     */
     private void confirmBlock() {
         if (nodesAtPoint.isEmpty() || currentNodeIndex >= nodesAtPoint.size()) {
             Toast.makeText(service, R.string.picker_no_element, Toast.LENGTH_SHORT).show();
@@ -456,16 +416,14 @@ public class ElementPickerOverlay {
         }
 
         AccessibilityNodeInfo node = nodesAtPoint.get(currentNodeIndex);
-        String selectorDesc = ElementPickerRuleGenerator.getSelectorDescription(node, currentRootNode);
-        String generatedRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, null);
-
-        // Build confirmation UI as an overlay (can't use AlertDialog from a service easily)
+        String selectorDesc =
+                ElementPickerRuleGenerator.getSelectorDescription(node, currentRootNode);
+        String generatedRule =
+                ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName,
+                        null);
         showConfirmationOverlay(node, selectorDesc, generatedRule, false);
     }
 
-    /**
-     * Show a confirmation dialog for blocking ALL elements like the currently selected one.
-     */
     private void confirmBlockAll() {
         if (nodesAtPoint.isEmpty() || currentNodeIndex >= nodesAtPoint.size()) {
             Toast.makeText(service, R.string.picker_no_element, Toast.LENGTH_SHORT).show();
@@ -474,41 +432,35 @@ public class ElementPickerOverlay {
 
         AccessibilityNodeInfo node = nodesAtPoint.get(currentNodeIndex);
         String selectorDesc = "All similar elements";
-        String generatedRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode, currentPackageName, null);
-
-        // Build confirmation UI as an overlay (can't use AlertDialog from a service easily)
+        String generatedRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode,
+                currentPackageName, null);
         showConfirmationOverlay(node, selectorDesc, generatedRule, true);
     }
 
-    /**
-     * Show a confirmation overlay with rule preview and comment field.
-     */
-    private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc, String generatedRule, boolean isBlockAll) {
+    private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc,
+                                         String generatedRule, boolean isBlockAll) {
         boolean isDarkMode = (service.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
 
         int bgColor = isDarkMode ? Color.argb(245, 30, 30, 30) : Color.argb(245, 255, 255, 255);
         int textColor = isDarkMode ? Color.WHITE : Color.BLACK;
-        int secondaryTextColor = isDarkMode ? Color.argb(180, 255, 255, 255) : Color.argb(180, 0, 0, 0);
+        int secondaryTextColor =
+                isDarkMode ? Color.argb(180, 255, 255, 255) : Color.argb(180, 0, 0, 0);
 
-        // Container
         FrameLayout container = new FrameLayout(service);
         container.setBackgroundColor(Color.argb(120, 0, 0, 0));
 
-        // Dialog card
         LinearLayout card = new LinearLayout(service);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackgroundColor(bgColor);
         int pad = dpToPx(20);
         card.setPadding(pad, pad, pad, pad);
         FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         cardParams.gravity = Gravity.CENTER;
         cardParams.leftMargin = dpToPx(24);
         cardParams.rightMargin = dpToPx(24);
 
-        // Title
         TextView title = new TextView(service);
         title.setText(isBlockAll ? R.string.picker_confirm_all_title : R.string.picker_confirm_title);
         title.setTextColor(textColor);
@@ -516,7 +468,6 @@ public class ElementPickerOverlay {
         title.setPadding(0, 0, 0, dpToPx(12));
         card.addView(title);
 
-        // Selector description
         TextView selectorLabel = new TextView(service);
         selectorLabel.setText(service.getString(R.string.picker_selector_label, selectorDesc));
         selectorLabel.setTextColor(secondaryTextColor);
@@ -524,16 +475,15 @@ public class ElementPickerOverlay {
         selectorLabel.setPadding(0, 0, 0, dpToPx(8));
         card.addView(selectorLabel);
 
-        // Generated rule preview
         TextView rulePreview = new TextView(service);
         rulePreview.setText(service.getString(R.string.picker_rule_preview, generatedRule));
         rulePreview.setTextColor(secondaryTextColor);
         rulePreview.setTextSize(12f);
         rulePreview.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
-        rulePreview.setBackgroundColor(isDarkMode ? Color.argb(60, 255, 255, 255) : Color.argb(30, 0, 0, 0));
+        rulePreview.setBackgroundColor(
+                isDarkMode ? Color.argb(60, 255, 255, 255) : Color.argb(30, 0, 0, 0));
         card.addView(rulePreview);
 
-        // Comment field label
         TextView commentLabel = new TextView(service);
         commentLabel.setText(R.string.picker_comment_label);
         commentLabel.setTextColor(textColor);
@@ -541,7 +491,6 @@ public class ElementPickerOverlay {
         commentLabel.setPadding(0, dpToPx(12), 0, dpToPx(4));
         card.addView(commentLabel);
 
-        // Comment input
         EditText commentInput = new EditText(service);
         commentInput.setHint(R.string.picker_comment_hint);
         commentInput.setTextColor(textColor);
@@ -550,7 +499,6 @@ public class ElementPickerOverlay {
         commentInput.setSingleLine(true);
         card.addView(commentInput);
 
-        // Button row
         LinearLayout btnRow = new LinearLayout(service);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.END);
@@ -559,9 +507,7 @@ public class ElementPickerOverlay {
         Button cancelBtn = createButton(service.getString(R.string.picker_dialog_cancel),
                 isDarkMode ? Color.argb(200, 80, 80, 80) : Color.argb(200, 200, 200, 200),
                 isDarkMode ? Color.WHITE : Color.BLACK);
-        cancelBtn.setOnClickListener(v -> {
-            removeSafely(container);
-        });
+        cancelBtn.setOnClickListener(v -> removeSafely(container));
 
         Button confirmBtn = createButton(service.getString(R.string.picker_dialog_confirm),
                 Color.argb(200, 200, 40, 40), Color.WHITE);
@@ -570,16 +516,15 @@ public class ElementPickerOverlay {
             if (comment.isEmpty()) {
                 comment = selectorDesc;
             }
-            String finalRule;
-            if (isBlockAll) {
-                finalRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode, currentPackageName, comment);
-            } else {
-                finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName, comment);
-            }
-            saveAndApplyRule(finalRule);
+
+            String finalRule = isBlockAll
+                    ? ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode,
+                    currentPackageName, comment)
+                    : ElementPickerRuleGenerator.generateRule(node, currentRootNode,
+                    currentPackageName, comment);
+            listener.onRuleChosen(finalRule);
             removeSafely(container);
-            hide();
-            service.stopPickerMode();
+            dismissPicker();
         });
 
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
@@ -589,12 +534,10 @@ public class ElementPickerOverlay {
         btnRow.addView(cancelBtn, btnParams);
         btnRow.addView(confirmBtn, btnParams);
         card.addView(btnRow);
-
         container.addView(card, cardParams);
 
-        // Tapping outside the card cancels
         container.setOnClickListener(v -> removeSafely(container));
-        card.setOnClickListener(v -> { /* consume click */ });
+        card.setOnClickListener(v -> { });
 
         WindowManager.LayoutParams overlayParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -605,30 +548,6 @@ public class ElementPickerOverlay {
         overlayParams.gravity = Gravity.TOP | Gravity.START;
 
         windowManager.addView(container, overlayParams);
-    }
-
-    /**
-     * Save the rule and immediately apply it.
-     */
-    private void saveAndApplyRule(String ruleString) {
-        ServiceConfig config = new ServiceConfig(service);
-        config.addCustomRule(ruleString);
-
-        // Enable the new rule
-        FilterRuleParser parser = new FilterRuleParser();
-        List<FilterRule> parsed = parser.parseRules(new String[]{ruleString});
-        if (!parsed.isEmpty()) {
-            FilterRule rule = parsed.get(0);
-            config.setRuleEnabled(rule, true);
-
-            // Also ensure the package is not disabled
-            config.setPackageDisabled(rule.packageName, false);
-        }
-
-        // Refresh service rules
-        service.updateRules();
-
-        Toast.makeText(service, R.string.picker_rule_saved, Toast.LENGTH_SHORT).show();
     }
 
     private int dpToPx(int dp) {

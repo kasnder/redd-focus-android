@@ -3,39 +3,39 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_main">
+    android:background="?attr/colorSurface">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center_horizontal">
+        android:padding="24dp">
 
         <TextView
             android:id="@+id/tv_gate_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="64dp"
             android:text="Action Required"
-            android:textAppearance="?attr/textAppearanceHeadline5"
-            android:layout_marginTop="64dp" />
+            android:textAppearance="?attr/textAppearanceHeadline5" />
 
         <TextView
             android:id="@+id/tv_gate_instruction"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:text="Type the following words to confirm"
             android:textAppearance="?attr/textAppearanceBody1"
-            android:layout_marginTop="8dp"
             android:textColor="?android:attr/textColorSecondary" />
 
         <TextView
             android:id="@+id/tv_progress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
             android:text="Word 1 of 5"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:layout_marginTop="32dp" />
+            android:textAppearance="?attr/textAppearanceCaption" />
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress_bar"
@@ -49,11 +49,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:background="@color/header_bg"
-            android:padding="16dp"
-            android:text="apple forest jungle"
+            android:background="?attr/colorPrimaryContainer"
             android:fontFamily="monospace"
             android:gravity="center"
+            android:padding="16dp"
+            android:text="apple forest jungle"
             android:textAppearance="?attr/textAppearanceSubtitle1" />
 
         <TextView
@@ -63,7 +63,7 @@
             android:layout_marginTop="48dp"
             android:text="apple"
             android:textAppearance="?attr/textAppearanceHeadline4"
-            android:textColor="@color/primary_blue"
+            android:textColor="?attr/colorPrimary"
             android:textStyle="bold" />
 
         <com.google.android.material.textfield.TextInputLayout
@@ -71,7 +71,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            app:boxStrokeColor="@color/primary_blue"
+            app:boxStrokeColor="?attr/colorPrimary"
             app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -79,9 +79,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:inputType="textNoSuggestions|textVisiblePassword"
                 android:hint="Type current word here"
                 android:imeOptions="actionNext"
+                android:inputType="textNoSuggestions|textVisiblePassword"
                 android:textSize="24sp" />
         </com.google.android.material.textfield.TextInputLayout>
 

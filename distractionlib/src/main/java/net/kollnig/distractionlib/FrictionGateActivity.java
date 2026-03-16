@@ -1,12 +1,8 @@
-package net.kollnig.greasemilkyway;
+package net.kollnig.distractionlib;
 
-import android.content.Intent;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,19 +18,22 @@ import java.util.Random;
 
 public class FrictionGateActivity extends AppCompatActivity {
 
+    public static final String EXTRA_WORD_COUNT = "WORD_COUNT";
+    public static final String EXTRA_CONTEXT_TITLE = "CONTEXT_TITLE";
+
     private static final String[] DICTIONARY = {
-        "apple", "forest", "jungle", "ocean", "mountain", "river", "desert", "garden", "bridge", "island",
-        "planet", "star", "galaxy", "nebula", "comet", "meteor", "lunar", "solar", "earth", "world",
-        "active", "bright", "calm", "dark", "energy", "flow", "growth", "hidden", "inner", "joyful",
-        "kind", "light", "magic", "nature", "open", "peace", "quiet", "rare", "soft", "truth",
-        "unique", "vibrant", "wisdom", "young", "zeal", "brave", "clear", "dream", "early", "fresh"
+            "apple", "forest", "jungle", "ocean", "mountain", "river", "desert", "garden",
+            "bridge", "island", "planet", "star", "galaxy", "nebula", "comet", "meteor",
+            "lunar", "solar", "earth", "world", "active", "bright", "calm", "dark", "energy",
+            "flow", "growth", "hidden", "inner", "joyful", "kind", "light", "magic", "nature",
+            "open", "peace", "quiet", "rare", "soft", "truth", "unique", "vibrant", "wisdom",
+            "young", "zeal", "brave", "clear", "dream", "early", "fresh"
     };
 
     private List<String> words;
     private int currentWordIndex = 0;
     private int wordCount;
 
-    private TextView tvGateTitle;
     private TextView tvProgress;
     private LinearProgressIndicator progressBar;
     private TextView tvFullPhrase;
@@ -47,8 +46,8 @@ public class FrictionGateActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_friction_gate);
 
-        wordCount = getIntent().getIntExtra("WORD_COUNT", 5);
-        String contextTitle = getIntent().getStringExtra("CONTEXT_TITLE");
+        wordCount = Math.max(1, getIntent().getIntExtra(EXTRA_WORD_COUNT, 5));
+        String contextTitle = getIntent().getStringExtra(EXTRA_CONTEXT_TITLE);
         if (contextTitle != null) {
             ((TextView) findViewById(R.id.tv_gate_title)).setText(contextTitle);
         }
@@ -61,13 +60,12 @@ public class FrictionGateActivity extends AppCompatActivity {
         List<String> dictList = new ArrayList<>();
         Collections.addAll(dictList, DICTIONARY);
         Collections.shuffle(dictList);
-        
+
         words = new ArrayList<>();
         for (int i = 0; i < Math.min(wordCount, dictList.size()); i++) {
             words.add(dictList.get(i));
         }
-        
-        // If wordCount > DICTIONARY size, repeat some words
+
         Random rand = new Random();
         while (words.size() < wordCount) {
             words.add(dictList.get(rand.nextInt(dictList.size())));
@@ -75,7 +73,6 @@ public class FrictionGateActivity extends AppCompatActivity {
     }
 
     private void initializeViews() {
-        tvGateTitle = findViewById(R.id.tv_gate_title);
         tvProgress = findViewById(R.id.tv_progress);
         progressBar = findViewById(R.id.progress_bar);
         tvFullPhrase = findViewById(R.id.tv_full_phrase);
@@ -93,7 +90,8 @@ public class FrictionGateActivity extends AppCompatActivity {
 
         etUserInput.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -101,7 +99,8 @@ public class FrictionGateActivity extends AppCompatActivity {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+            }
         });
 
         findViewById(R.id.btn_cancel).setOnClickListener(v -> {
@@ -114,8 +113,6 @@ public class FrictionGateActivity extends AppCompatActivity {
         tvProgress.setText("Word " + (currentWordIndex + 1) + " of " + wordCount);
         progressBar.setProgress((int) (((float) currentWordIndex / wordCount) * 100));
         tvCurrentWord.setText(words.get(currentWordIndex));
-        
-        // Reset error state
         tilUserInput.setError(null);
     }
 
@@ -124,7 +121,6 @@ public class FrictionGateActivity extends AppCompatActivity {
         if (input.equalsIgnoreCase(target)) {
             currentWordIndex++;
             if (currentWordIndex >= wordCount) {
-                // Completed!
                 setResult(RESULT_OK);
                 finish();
             } else {

@@ -24,6 +24,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import net.kollnig.distractionlib.FilterRule;
+import net.kollnig.distractionlib.FrictionGateActivity;
+
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {

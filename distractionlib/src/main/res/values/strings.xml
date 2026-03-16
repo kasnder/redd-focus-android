@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picker_hint">Tap on an element to select it</string>
+    <string name="picker_deeper">Deeper</string>
+    <string name="picker_shallower">Shallower</string>
+    <string name="picker_block">Block</string>
+    <string name="picker_block_all">Block All</string>
+    <string name="picker_confirm_all_title">Block all elements like this?</string>
+    <string name="picker_cancel">Cancel</string>
+    <string name="picker_move">Move</string>
+    <string name="picker_no_element">No element found at this position</string>
+    <string name="picker_deepest">Already at deepest element</string>
+    <string name="picker_shallowest">Already at shallowest element</string>
+    <string name="picker_confirm_title">Block this element?</string>
+    <string name="picker_selector_label">Matched by: %s</string>
+    <string name="picker_rule_preview">Rule: %s</string>
+    <string name="picker_comment_label">Comment (optional)</string>
+    <string name="picker_comment_hint">e.g. Hide AI button</string>
+    <string name="picker_dialog_cancel">Cancel</string>
+    <string name="picker_dialog_confirm">Block</string>
+</resources>

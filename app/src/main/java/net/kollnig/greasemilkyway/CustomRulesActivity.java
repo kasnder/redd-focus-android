@@ -24,6 +24,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 
+import net.kollnig.distractionlib.FilterRuleParser;
+
 public class CustomRulesActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "picker_prefs";
     private static final String KEY_PICKER_INTRO_SHOWN = "picker_intro_shown";

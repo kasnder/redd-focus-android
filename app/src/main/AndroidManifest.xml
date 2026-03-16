@@ -50,7 +50,7 @@
             android:parentActivityName="net.kollnig.greasemilkyway.MainActivity" />
 
         <activity
-            android:name="net.kollnig.greasemilkyway.FrictionGateActivity"
+            android:name="net.kollnig.distractionlib.FrictionGateActivity"
             android:exported="false"
             android:theme="@style/Theme.GreaseMilkyway.NoActionBar" />
 

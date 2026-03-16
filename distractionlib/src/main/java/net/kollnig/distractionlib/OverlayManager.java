@@ -1,4 +1,4 @@
-package net.kollnig.greasemilkyway;
+package net.kollnig.distractionlib;
 
 import android.os.Handler;
 import android.util.Log;
@@ -20,7 +20,8 @@ public class OverlayManager {
         return overlays.size();
     }
 
-    public void addOverlay(View overlay, WindowManager.LayoutParams params, WindowManager windowManager, Handler ui) {
+    public void addOverlay(View overlay, WindowManager.LayoutParams params, WindowManager windowManager,
+                           Handler ui) {
         ui.post(() -> {
             try {
                 windowManager.addView(overlay, params);
@@ -31,7 +32,8 @@ public class OverlayManager {
         });
     }
 
-    public void updateOverlay(View overlay, WindowManager.LayoutParams params, WindowManager windowManager, Handler ui) {
+    public void updateOverlay(View overlay, WindowManager.LayoutParams params,
+                              WindowManager windowManager, Handler ui) {
         ui.post(() -> {
             try {
                 if (overlay.getParent() != null) {
@@ -84,4 +86,4 @@ public class OverlayManager {
             overlays.remove(v);
         }
     }
-} 
+}

@@ -24,6 +24,8 @@ import java.util.Locale;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import net.kollnig.distractionlib.FilterRule;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

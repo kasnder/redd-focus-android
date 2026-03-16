@@ -3,6 +3,9 @@ package net.kollnig.greasemilkyway;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import net.kollnig.distractionlib.FilterRule;
+import net.kollnig.distractionlib.FilterRuleParser;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;

@@ -1,4 +1,4 @@
-package net.kollnig.greasemilkyway;
+package net.kollnig.distractionlib;
 
 import java.util.Set;
 
@@ -6,23 +6,24 @@ import java.util.Set;
  * Represents a single content blocking rule.
  */
 public class FilterRule {
-    final String packageName;
-    final String targetViewId;
-    final Set<String> contentDescriptions;
-    final String targetClassName;
-    final String targetText;
-    final String targetPath;
-    final int color;
-    final String description;
-    final String ruleString;
-    final boolean blockTouches;
-    boolean enabled;
-    boolean isCustom;
-    boolean isPaused;
-    long pausedUntil;
+    public final String packageName;
+    public final String targetViewId;
+    public final Set<String> contentDescriptions;
+    public final String targetClassName;
+    public final String targetText;
+    public final String targetPath;
+    public final int color;
+    public final String description;
+    public final String ruleString;
+    public final boolean blockTouches;
+    public boolean enabled;
+    public boolean isCustom;
+    public boolean isPaused;
+    public long pausedUntil;
 
-    FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
-               String path, int color, String description, String ruleString, boolean blockTouches) {
+    public FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
+                      String path, int color, String description, String ruleString,
+                      boolean blockTouches) {
         this.packageName = pkg;
         this.targetViewId = viewId;
         this.contentDescriptions = descs;
@@ -39,7 +40,7 @@ public class FilterRule {
         this.pausedUntil = 0;
     }
 
-    boolean matchesPackage(CharSequence pkgName) {
+    public boolean matchesPackage(CharSequence pkgName) {
         return pkgName != null && packageName.contentEquals(pkgName);
     }
 
