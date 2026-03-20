@@ -41,10 +41,11 @@ public class MainActivity extends AppCompatActivity {
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK && onFrictionGatePassed != null) {
                     onFrictionGatePassed.run();
+                } else {
+                    // Friction gate was cancelled - reload to restore switch state and listeners
+                    loadSettings();
                 }
                 onFrictionGatePassed = null;
-                // Re-enable UI or rebuild list if needed
-                loadSettings();
             });
 
     @Override
