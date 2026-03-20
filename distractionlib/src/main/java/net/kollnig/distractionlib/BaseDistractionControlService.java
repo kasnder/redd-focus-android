@@ -14,6 +14,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -170,6 +171,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void registerScreenReceiver() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null) {
+            screenOn = pm.isInteractive();
+            Log.d(getLogTag(), "Initial screen state: " + (screenOn ? "on" : "off"));
+        }
+
         screenReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
