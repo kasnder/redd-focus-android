@@ -94,14 +94,31 @@ public class SettingsActivity extends AppCompatActivity {
             updateSubtitles();
         }));
 
-        findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> showNumberPickerDialog("Event Throttle", "Minimum ms between events. Higher = less battery use, but slower response (0-500)", 0, 500, (int) config.getNotificationTimeoutMs(), newValue -> {
-            config.setNotificationTimeoutMs(newValue);
-            updateSubtitles();
-            DistractionControlService svc = DistractionControlService.getInstance();
-            if (svc != null) {
-                svc.updateRules();
+        findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> {
+            final String[] labels = {"Immediate response", "Default (recommended)", "Battery saver"};
+            final long[] values = {0, 100, 300};
+            long current = config.getNotificationTimeoutMs();
+            int checkedItem = 1;
+            for (int i = 0; i < values.length; i++) {
+                if (values[i] == current) {
+                    checkedItem = i;
+                    break;
+                }
             }
-        }));
+            new AlertDialog.Builder(this)
+                .setTitle("Response Speed")
+                .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
+                    config.setNotificationTimeoutMs(values[which]);
+                    updateSubtitles();
+                    DistractionControlService svc = DistractionControlService.getInstance();
+                    if (svc != null) {
+                        svc.updateRules();
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+        });
     }
 
     private void updateSubtitles() {
@@ -112,7 +129,16 @@ public class SettingsActivity extends AppCompatActivity {
             tvPauseDurationSubtitle.setText(getString(R.string.pause_duration_minutes, config.getPauseDurationMins()));
         }
         if (tvNotificationTimeoutSubtitle != null) {
-            tvNotificationTimeoutSubtitle.setText(getString(R.string.notification_timeout_ms, (int) config.getNotificationTimeoutMs()));
+            long ms = config.getNotificationTimeoutMs();
+            String label;
+            if (ms <= 0) {
+                label = getString(R.string.response_speed_immediate);
+            } else if (ms >= 300) {
+                label = getString(R.string.response_speed_battery_saver);
+            } else {
+                label = getString(R.string.response_speed_default);
+            }
+            tvNotificationTimeoutSubtitle.setText(label);
         }
     }
 
