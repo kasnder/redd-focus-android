@@ -18,4 +18,6 @@
     <string name="picker_comment_hint">e.g. Hide AI button</string>
     <string name="picker_dialog_cancel">Cancel</string>
     <string name="picker_dialog_confirm">Block</string>
+    <string name="picker_undo">Undo</string>
+    <string name="picker_rule_applied">Blocked: %s</string>
 </resources>
