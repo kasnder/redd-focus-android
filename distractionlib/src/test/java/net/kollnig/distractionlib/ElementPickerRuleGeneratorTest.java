@@ -17,7 +17,9 @@ public class ElementPickerRuleGeneratorTest {
 
     @Before
     public void setUp() {
-        rootNode = mock(AccessibilityNodeInfo.class);
+        // Use a real AccessibilityNodeInfo instead of a mock so that
+        // Robolectric's equals() works correctly inside generatePath/generatePathWithWildcard.
+        rootNode = AccessibilityNodeInfo.obtain();
     }
 
     @Test
@@ -219,7 +221,7 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generatePathReturnsNullForNullRoot() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
         String path = ElementPickerRuleGenerator.generatePath(node, null);
         assertNull(path);
     }
@@ -232,7 +234,7 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generatePathWithWildcardReturnsNullForNullRoot() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
         String path = ElementPickerRuleGenerator.generatePathWithWildcard(node, null);
         assertNull(path);
     }
