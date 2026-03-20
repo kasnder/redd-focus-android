@@ -79,6 +79,8 @@
     <string name="picker_dialog_cancel">Cancel</string>
     <string name="picker_dialog_confirm">Block</string>
     <string name="picker_rule_saved">Rule saved! Element will now be hidden.</string>
+    <string name="picker_undo">Undo</string>
+    <string name="picker_rule_applied">Blocked: %s</string>
 
     <!-- Accessibility service prompt -->
     <string name="accessibility_prompt_title">Enable ReDD Focus</string>

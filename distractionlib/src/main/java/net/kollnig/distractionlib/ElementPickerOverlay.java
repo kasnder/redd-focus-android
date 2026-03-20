@@ -37,6 +37,8 @@ public class ElementPickerOverlay {
     public interface Listener {
         void onRuleChosen(String ruleString);
 
+        void onRuleUndone(String ruleString);
+
         void onPickerDismissed();
     }
 
@@ -56,6 +58,10 @@ public class ElementPickerOverlay {
     private AccessibilityNodeInfo currentRootNode = null;
     private boolean isActive = false;
     private boolean isAtBottom = true;
+    private String lastAppliedRule = null;
+    private LinearLayout undoBar = null;
+    private Runnable undoAutoHideRunnable = null;
+    private static final long UNDO_TIMEOUT_MS = 8000;
 
     public ElementPickerOverlay(AccessibilityService service, WindowManager windowManager,
                                 Listener listener) {
@@ -87,6 +93,7 @@ public class ElementPickerOverlay {
     public void hide() {
         isActive = false;
         ui.post(() -> {
+            removeUndoBar();
             removeSafely(touchInterceptor);
             removeSafely(highlightView);
             removeSafely(controlBar);
@@ -94,6 +101,7 @@ public class ElementPickerOverlay {
             highlightView = null;
             controlBar = null;
             infoText = null;
+            lastAppliedRule = null;
             recycleNodes();
         });
     }
@@ -523,8 +531,11 @@ public class ElementPickerOverlay {
                     : ElementPickerRuleGenerator.generateRule(node, currentRootNode,
                     currentPackageName, comment);
             listener.onRuleChosen(finalRule);
+            lastAppliedRule = finalRule;
             removeSafely(container);
-            dismissPicker();
+            hideHighlight();
+            recycleNodes();
+            showUndoBar(comment);
         });
 
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
@@ -548,6 +559,81 @@ public class ElementPickerOverlay {
         overlayParams.gravity = Gravity.TOP | Gravity.START;
 
         windowManager.addView(container, overlayParams);
+    }
+
+    private void showUndoBar(String ruleDescription) {
+        removeUndoBar();
+
+        boolean isDarkMode = (service.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+
+        int bgColor = isDarkMode ? Color.argb(240, 50, 50, 50) : Color.argb(240, 40, 40, 40);
+
+        undoBar = new LinearLayout(service);
+        undoBar.setOrientation(LinearLayout.HORIZONTAL);
+        undoBar.setGravity(Gravity.CENTER_VERTICAL);
+        undoBar.setBackgroundColor(bgColor);
+        int hPad = dpToPx(16);
+        int vPad = dpToPx(12);
+        undoBar.setPadding(hPad, vPad, hPad, vPad);
+
+        TextView message = new TextView(service);
+        String text = service.getString(R.string.picker_rule_applied, ruleDescription);
+        message.setText(text);
+        message.setTextColor(Color.WHITE);
+        message.setTextSize(13f);
+        message.setSingleLine(true);
+        LinearLayout.LayoutParams msgParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        undoBar.addView(message, msgParams);
+
+        Button undoBtn = new Button(service);
+        undoBtn.setText(R.string.picker_undo);
+        undoBtn.setTextSize(13f);
+        undoBtn.setAllCaps(true);
+        undoBtn.setBackgroundColor(Color.TRANSPARENT);
+        undoBtn.setTextColor(Color.argb(255, 100, 180, 255));
+        undoBtn.setPadding(dpToPx(12), 0, dpToPx(4), 0);
+        undoBtn.setOnClickListener(v -> {
+            if (lastAppliedRule != null) {
+                listener.onRuleUndone(lastAppliedRule);
+                lastAppliedRule = null;
+            }
+            removeUndoBar();
+            updateInfo(service.getString(R.string.picker_hint));
+        });
+        undoBar.addView(undoBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                0, 0,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        // Show undo bar on opposite side of control bar to avoid overlap
+        params.gravity = (isAtBottom ? Gravity.TOP : Gravity.BOTTOM) | Gravity.START;
+
+        windowManager.addView(undoBar, params);
+
+        undoAutoHideRunnable = () -> {
+            removeUndoBar();
+            lastAppliedRule = null;
+        };
+        ui.postDelayed(undoAutoHideRunnable, UNDO_TIMEOUT_MS);
+    }
+
+    private void removeUndoBar() {
+        if (undoAutoHideRunnable != null) {
+            ui.removeCallbacks(undoAutoHideRunnable);
+            undoAutoHideRunnable = null;
+        }
+        if (undoBar != null) {
+            removeSafely(undoBar);
+            undoBar = null;
+        }
     }
 
     private int dpToPx(int dp) {

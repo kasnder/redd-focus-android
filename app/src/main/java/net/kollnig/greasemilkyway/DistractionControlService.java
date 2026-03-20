@@ -78,6 +78,11 @@ public class DistractionControlService extends BaseDistractionControlService {
                     }
 
                     @Override
+                    public void onRuleUndone(String ruleString) {
+                        undoPickerRule(ruleString);
+                    }
+
+                    @Override
                     public void onPickerDismissed() {
                         stopPickerMode();
                     }
@@ -160,6 +165,21 @@ public class DistractionControlService extends BaseDistractionControlService {
             FilterRule rule = parsed.get(0);
             config.setRuleEnabled(rule, true);
             config.setPackageDisabled(rule.packageName, false);
+        }
+
+        updateRules();
+    }
+
+    private void undoPickerRule(String ruleString) {
+        Log.i(TAG, "Undoing picker rule: " + ruleString);
+        ServiceConfig config = new ServiceConfig(this);
+        config.removeCustomRule(ruleString);
+
+        FilterRuleParser parser = new FilterRuleParser();
+        List<FilterRule> parsed = parser.parseRules(new String[]{ruleString});
+        if (!parsed.isEmpty()) {
+            FilterRule rule = parsed.get(0);
+            config.setRuleEnabled(rule, false);
         }
 
         updateRules();
