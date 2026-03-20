@@ -219,10 +219,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         if (packageName.equals(getPackageName())
                 || packageName.equals("com.android.systemui")
                 || isLauncherPackage(packageName)) {
-            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                ui.removeCallbacks(processEvent);
-                forceClearAllOverlays();
-            }
+            ui.removeCallbacks(processEvent);
+            forceClearAllOverlays();
             return;
         }
 
