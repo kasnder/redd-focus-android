@@ -46,11 +46,10 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generateRuleFallsBackToTextWhenNoViewIdOrPath() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn(null);
-        when(node.getText()).thenReturn("Click me");
-        when(node.getClassName()).thenReturn("android.widget.TextView");
-        when(node.getParent()).thenReturn(null);
+        // Use real AccessibilityNodeInfo to avoid NPE in AccessibilityNodeInfo.obtain() within generatePath
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setText("Click me");
+        node.setClassName("android.widget.TextView");
 
         String rule = ElementPickerRuleGenerator.generateRule(node, rootNode, "com.example", null);
 
@@ -59,11 +58,8 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generateRuleFallsBackToClassNameWhenNoViewIdPathOrText() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn(null);
-        when(node.getText()).thenReturn(null);
-        when(node.getClassName()).thenReturn("android.widget.ImageView");
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setClassName("android.widget.ImageView");
 
         String rule = ElementPickerRuleGenerator.generateRule(node, rootNode, "com.example", null);
 
@@ -72,11 +68,10 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generateRuleWithEmptyViewId() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn("");
-        when(node.getText()).thenReturn("Some text");
-        when(node.getClassName()).thenReturn("android.widget.TextView");
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setViewIdResourceName("");
+        node.setText("Some text");
+        node.setClassName("android.widget.TextView");
 
         String rule = ElementPickerRuleGenerator.generateRule(node, rootNode, "com.example", null);
 
@@ -188,11 +183,9 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void getSelectorDescriptionFallsBackToText() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn(null);
-        when(node.getText()).thenReturn("Click me");
-        when(node.getClassName()).thenReturn("android.widget.Button");
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setText("Click me");
+        node.setClassName("android.widget.Button");
 
         String desc = ElementPickerRuleGenerator.getSelectorDescription(node, rootNode);
 
@@ -201,11 +194,8 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void getSelectorDescriptionFallsBackToClassName() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn(null);
-        when(node.getText()).thenReturn(null);
-        when(node.getClassName()).thenReturn("android.widget.ImageView");
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setClassName("android.widget.ImageView");
 
         String desc = ElementPickerRuleGenerator.getSelectorDescription(node, rootNode);
 
@@ -214,11 +204,7 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void getSelectorDescriptionUnknownElement() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn(null);
-        when(node.getText()).thenReturn(null);
-        when(node.getClassName()).thenReturn(null);
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
 
         String desc = ElementPickerRuleGenerator.getSelectorDescription(node, rootNode);
 
@@ -253,10 +239,9 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generateRuleForAllWithViewId() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn("com.example:id/item");
-        when(node.getClassName()).thenReturn("android.widget.LinearLayout");
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setViewIdResourceName("com.example:id/item");
+        node.setClassName("android.widget.LinearLayout");
 
         String rule = ElementPickerRuleGenerator.generateRuleForAll(
                 node, rootNode, "com.example", "Hide items");
@@ -268,10 +253,8 @@ public class ElementPickerRuleGeneratorTest {
 
     @Test
     public void generateRuleForAllFallsBackToViewId() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        when(node.getViewIdResourceName()).thenReturn("com.example:id/item");
-        when(node.getClassName()).thenReturn(null);
-        when(node.getParent()).thenReturn(null);
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setViewIdResourceName("com.example:id/item");
 
         String rule = ElementPickerRuleGenerator.generateRuleForAll(
                 node, rootNode, "com.example", null);
