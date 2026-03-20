@@ -110,4 +110,7 @@
     <!-- Settings subtitle defaults (overridden at runtime) -->
     <string name="friction_gate_subtitle_default">Current: 0 words</string>
     <string name="pause_duration_subtitle_default">Current: 10 mins</string>
+    <string name="notification_timeout_title">Event Throttle (Battery Saver)</string>
+    <string name="notification_timeout_subtitle_default">Current: 100 ms</string>
+    <string name="notification_timeout_ms">%d ms</string>
 </resources>

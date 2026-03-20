@@ -54,6 +54,14 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     @Override
+    protected long getNotificationTimeout() {
+        if (config == null) {
+            config = new ServiceConfig(this);
+        }
+        return config.getNotificationTimeoutMs();
+    }
+
+    @Override
     protected void onServiceReady() {
         instance = this;
         config = new ServiceConfig(this);

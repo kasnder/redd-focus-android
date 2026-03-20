@@ -3,7 +3,10 @@ package net.kollnig.distractionlib;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
@@ -41,7 +44,9 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private WindowManager windowManager;
     private boolean isDarkMode;
     private boolean sentinelPackagesActive;
+    private boolean screenOn = true;
     private String cachedLauncherPackage;
+    private BroadcastReceiver screenReceiver;
 
     private final Runnable processEvent = () -> {
         try {
@@ -88,6 +93,14 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     protected abstract void onServiceReady();
 
     protected abstract void onServiceTeardown();
+
+    /**
+     * Returns the notification timeout in milliseconds for the accessibility service.
+     * Higher values reduce event frequency and save battery. Default is 100ms.
+     */
+    protected long getNotificationTimeout() {
+        return 100;
+    }
 
     protected void onRulesReloaded() {
     }
@@ -148,11 +161,33 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 return;
             }
             updateDarkMode();
+            registerScreenReceiver();
             onServiceReady();
             reloadRulesFromSource();
         } catch (Exception e) {
             Log.e(getLogTag(), "Error initializing service", e);
         }
+    }
+
+    private void registerScreenReceiver() {
+        screenReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                    screenOn = false;
+                    Log.d(getLogTag(), "Screen off - pausing accessibility processing");
+                    ui.removeCallbacks(processEvent);
+                    forceClearAllOverlays();
+                } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                    screenOn = true;
+                    Log.d(getLogTag(), "Screen on - resuming accessibility processing");
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenReceiver, filter);
     }
 
     @Override
@@ -168,7 +203,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null) {
+        if (event == null || !screenOn) {
             return;
         }
 
@@ -223,6 +258,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 return;
             }
             info.flags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+            info.notificationTimeout = getNotificationTimeout();
 
             Set<String> packages = new HashSet<>();
             for (FilterRule rule : rules) {
@@ -604,6 +640,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         super.onDestroy();
         try {
             onServiceTeardown();
+            if (screenReceiver != null) {
+                try {
+                    unregisterReceiver(screenReceiver);
+                } catch (Exception ignored) {
+                }
+            }
         } finally {
             forceClearAllOverlays();
         }

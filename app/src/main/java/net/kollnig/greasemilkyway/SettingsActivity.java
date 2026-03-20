@@ -28,6 +28,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ServiceConfig config;
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
+    private TextView tvNotificationTimeoutSubtitle;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -77,7 +78,8 @@ public class SettingsActivity extends AppCompatActivity {
         
         tvFrictionGateSubtitle = findViewById(R.id.tv_friction_gate_subtitle);
         tvPauseDurationSubtitle = findViewById(R.id.tv_pause_duration_subtitle);
-        
+        tvNotificationTimeoutSubtitle = findViewById(R.id.tv_notification_timeout_subtitle);
+
         updateSubtitles();
 
         findViewById(R.id.btn_custom_rules).setOnClickListener(v -> startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class)));
@@ -91,6 +93,15 @@ public class SettingsActivity extends AppCompatActivity {
             config.setPauseDurationMins(newValue);
             updateSubtitles();
         }));
+
+        findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> showNumberPickerDialog("Event Throttle", "Minimum ms between events. Higher = less battery use, but slower response (0-500)", 0, 500, (int) config.getNotificationTimeoutMs(), newValue -> {
+            config.setNotificationTimeoutMs(newValue);
+            updateSubtitles();
+            DistractionControlService svc = DistractionControlService.getInstance();
+            if (svc != null) {
+                svc.updateRules();
+            }
+        }));
     }
 
     private void updateSubtitles() {
@@ -99,6 +110,9 @@ public class SettingsActivity extends AppCompatActivity {
         }
         if (tvPauseDurationSubtitle != null) {
             tvPauseDurationSubtitle.setText(getString(R.string.pause_duration_minutes, config.getPauseDurationMins()));
+        }
+        if (tvNotificationTimeoutSubtitle != null) {
+            tvNotificationTimeoutSubtitle.setText(getString(R.string.notification_timeout_ms, (int) config.getNotificationTimeoutMs()));
         }
     }
 
