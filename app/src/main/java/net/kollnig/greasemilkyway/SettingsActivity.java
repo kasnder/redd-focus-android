@@ -28,6 +28,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ServiceConfig config;
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
+    private TextView tvNotificationTimeoutSubtitle;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -77,7 +78,8 @@ public class SettingsActivity extends AppCompatActivity {
         
         tvFrictionGateSubtitle = findViewById(R.id.tv_friction_gate_subtitle);
         tvPauseDurationSubtitle = findViewById(R.id.tv_pause_duration_subtitle);
-        
+        tvNotificationTimeoutSubtitle = findViewById(R.id.tv_notification_timeout_subtitle);
+
         updateSubtitles();
 
         findViewById(R.id.btn_custom_rules).setOnClickListener(v -> startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class)));
@@ -91,6 +93,32 @@ public class SettingsActivity extends AppCompatActivity {
             config.setPauseDurationMins(newValue);
             updateSubtitles();
         }));
+
+        findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> {
+            final String[] labels = {"Immediate response", "Default (recommended)", "Battery saver"};
+            final long[] values = {0, 100, 300};
+            long current = config.getNotificationTimeoutMs();
+            int checkedItem = 1;
+            for (int i = 0; i < values.length; i++) {
+                if (values[i] == current) {
+                    checkedItem = i;
+                    break;
+                }
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("Response Speed")
+                .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
+                    config.setNotificationTimeoutMs(values[which]);
+                    updateSubtitles();
+                    DistractionControlService svc = DistractionControlService.getInstance();
+                    if (svc != null) {
+                        svc.updateRules();
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+        });
     }
 
     private void updateSubtitles() {
@@ -99,6 +127,18 @@ public class SettingsActivity extends AppCompatActivity {
         }
         if (tvPauseDurationSubtitle != null) {
             tvPauseDurationSubtitle.setText(getString(R.string.pause_duration_minutes, config.getPauseDurationMins()));
+        }
+        if (tvNotificationTimeoutSubtitle != null) {
+            long ms = config.getNotificationTimeoutMs();
+            String label;
+            if (ms <= 0) {
+                label = getString(R.string.response_speed_immediate);
+            } else if (ms >= 300) {
+                label = getString(R.string.response_speed_battery_saver);
+            } else {
+                label = getString(R.string.response_speed_default);
+            }
+            tvNotificationTimeoutSubtitle.setText(label);
         }
     }
 

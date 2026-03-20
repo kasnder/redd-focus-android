@@ -26,6 +26,7 @@ public class ServiceConfig {
     private static final String KEY_PAUSE_UNTIL_PACKAGE_ = "pause_until_package_";
     private static final String KEY_FRICTION_WORD_COUNT = "friction_word_count";
     private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
+    private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
 
     private final SharedPreferences prefs;
@@ -175,6 +176,14 @@ public class ServiceConfig {
 
     public void setPauseDurationMins(int mins) {
         prefs.edit().putInt(KEY_PAUSE_DURATION_MINS, mins).apply();
+    }
+
+    public long getNotificationTimeoutMs() {
+        return prefs.getLong(KEY_NOTIFICATION_TIMEOUT_MS, 100);
+    }
+
+    public void setNotificationTimeoutMs(long ms) {
+        prefs.edit().putLong(KEY_NOTIFICATION_TIMEOUT_MS, ms).apply();
     }
 
     public String[] getCustomRules() {
