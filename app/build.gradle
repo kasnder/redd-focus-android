@@ -10,8 +10,8 @@ android {
         applicationId "net.kollnig.greasemilkyway"
         minSdk 24
         targetSdk 36
-        versionCode 26031507
-        versionName "0.9.0"
+        versionCode 26033101
+        versionName "0.9.1"
     }
 
     flavorDimensions "variant"
