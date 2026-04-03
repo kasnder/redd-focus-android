@@ -24,6 +24,15 @@ public class ServiceConfig {
     private static final String KEY_PACKAGE_DISABLED = "package_disabled_";
     private static final String KEY_PAUSE_UNTIL_RULE_ = "pause_until_rule_";
     private static final String KEY_PAUSE_UNTIL_PACKAGE_ = "pause_until_package_";
+
+    /**
+     * Returns a stable preference key suffix for a rule.
+     * Uses the ruleString directly (sanitized for SharedPreferences key safety)
+     * instead of hashCode() to avoid collisions and orphaned state.
+     */
+    private static String ruleKey(FilterRule rule) {
+        return rule.ruleString.replace("/", "_").replace("=", "_");
+    }
     private static final String KEY_FRICTION_WORD_COUNT = "friction_word_count";
     private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
     private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
@@ -44,21 +53,21 @@ public class ServiceConfig {
     }
 
     public void setRuleEnabled(FilterRule rule, boolean enabled) {
-        String key = KEY_RULE_ENABLED + rule.hashCode();
+        String key = KEY_RULE_ENABLED + ruleKey(rule);
         prefs.edit().putBoolean(key, enabled).apply();
     }
 
     public boolean isRuleEnabled(FilterRule rule) {
-        return prefs.getBoolean(KEY_RULE_ENABLED + rule.hashCode(), false);
+        return prefs.getBoolean(KEY_RULE_ENABLED + ruleKey(rule), false);
     }
-    
+
     public void setRulePausedUntil(FilterRule rule, long timestampMillis) {
-        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        String key = KEY_PAUSE_UNTIL_RULE_ + ruleKey(rule);
         prefs.edit().putLong(key, timestampMillis).apply();
     }
-    
+
     public long getRulePausedUntil(FilterRule rule) {
-        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        String key = KEY_PAUSE_UNTIL_RULE_ + ruleKey(rule);
         return prefs.getLong(key, 0);
     }
 
@@ -113,7 +122,7 @@ public class ServiceConfig {
         // Apply saved enabled states
         long currentTime = System.currentTimeMillis();
         for (FilterRule rule : rules) {
-            String ruleEnabledKey = KEY_RULE_ENABLED + rule.hashCode();
+            String ruleEnabledKey = KEY_RULE_ENABLED + ruleKey(rule);
             boolean ruleEnabled = prefs.getBoolean(ruleEnabledKey, false);
             
             long packagePauseUntil = 0;

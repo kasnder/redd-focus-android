@@ -90,11 +90,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private void rebuildItemsList() {
         // Preserve full rule state (enabled, paused, pausedUntil) from existing items
         // so that external setRules() calls don't overwrite local changes
-        Map<Integer, FilterRule> existingRules = new HashMap<>();
+        Map<String, FilterRule> existingRules = new HashMap<>();
         for (Object item : items) {
             if (item instanceof RuleItem) {
                 FilterRule rule = ((RuleItem) item).rule;
-                existingRules.put(rule.hashCode(), rule);
+                existingRules.put(rule.ruleString, rule);
             }
         }
 
@@ -104,7 +104,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         Map<String, List<FilterRule>> rulesByPackage = new HashMap<>();
         for (FilterRule rule : currentRules) {
             // Preserve state from existing rules
-            FilterRule existing = existingRules.get(rule.hashCode());
+            FilterRule existing = existingRules.get(rule.ruleString);
             if (existing != null) {
                 rule.enabled = existing.enabled;
                 rule.isPaused = existing.isPaused;
@@ -428,20 +428,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 String fullText = "Made with ❤️ by reddfocus.org";
                 SpannableString spannableString = new SpannableString(fullText);
                 int start = fullText.indexOf("reddfocus.org");
-                int end = start + "reddfocus.org".length();
-                ClickableSpan clickableSpan = new ClickableSpan() {
-                    @Override
-                    public void onClick(View widget) {
-                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
-                        context.startActivity(browserIntent);
-                    }
-                    @Override
-                    public void updateDrawState(android.text.TextPaint ds) {
-                        ds.setUnderlineText(false);
-                        ds.setColor(viewHolder.footerText.getCurrentTextColor());
-                    }
-                };
-                spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (start >= 0) {
+                    int end = start + "reddfocus.org".length();
+                    ClickableSpan clickableSpan = new ClickableSpan() {
+                        @Override
+                        public void onClick(View widget) {
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
+                            context.startActivity(browserIntent);
+                        }
+                        @Override
+                        public void updateDrawState(android.text.TextPaint ds) {
+                            ds.setUnderlineText(false);
+                            ds.setColor(viewHolder.footerText.getCurrentTextColor());
+                        }
+                    };
+                    spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
                 viewHolder.footerText.setText(spannableString);
                 viewHolder.footerText.setMovementMethod(LinkMovementMethod.getInstance());
                 viewHolder.footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
@@ -454,21 +456,23 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             String email = "konrad.kollnig@maastrichtuniversity.nl";
             SpannableString recruitmentSpannable = new SpannableString(recruitmentFull);
             int emailStart = recruitmentFull.indexOf(email);
-            int emailEnd = emailStart + email.length();
-            ClickableSpan emailSpan = new ClickableSpan() {
-                @Override
-                public void onClick(View widget) {
-                    Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
-                    emailIntent.setData(Uri.parse("mailto:" + email));
-                    context.startActivity(emailIntent);
-                }
-                @Override
-                public void updateDrawState(android.text.TextPaint ds) {
-                    ds.setUnderlineText(true);
-                    ds.setColor(viewHolder.recruitmentText.getCurrentTextColor());
-                }
-            };
-            recruitmentSpannable.setSpan(emailSpan, emailStart, emailEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (emailStart >= 0) {
+                int emailEnd = emailStart + email.length();
+                ClickableSpan emailSpan = new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
+                        emailIntent.setData(Uri.parse("mailto:" + email));
+                        context.startActivity(emailIntent);
+                    }
+                    @Override
+                    public void updateDrawState(android.text.TextPaint ds) {
+                        ds.setUnderlineText(true);
+                        ds.setColor(viewHolder.recruitmentText.getCurrentTextColor());
+                    }
+                };
+                recruitmentSpannable.setSpan(emailSpan, emailStart, emailEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
             viewHolder.recruitmentText.setText(recruitmentSpannable);
             viewHolder.recruitmentText.setMovementMethod(LinkMovementMethod.getInstance());
             viewHolder.recruitmentText.setHighlightColor(android.graphics.Color.TRANSPARENT);
@@ -477,12 +481,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 
     private void showPauseDialog(String packageName, FilterRule rule) {
         int durationMins = config.getPauseDurationMins();
-        String message = "Do you want to pause for " + durationMins + " minutes or disable permanently?";
-        
+
         new AlertDialog.Builder(context)
-                .setTitle("Disable Rule")
-                .setMessage(message)
-                .setPositiveButton("Pause (" + durationMins + "m)", (dialog, which) -> {
+                .setTitle(R.string.pause_dialog_title)
+                .setMessage(context.getString(R.string.pause_dialog_message, durationMins))
+                .setPositiveButton(context.getString(R.string.pause_dialog_pause, durationMins), (dialog, which) -> {
                     long until = System.currentTimeMillis() + (durationMins * 60 * 1000L);
                     if (rule != null) {
                         config.setRuleEnabled(rule, false);
@@ -506,7 +509,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     rebuildItemsList();
                     notifyService();
                 })
-                .setNeutralButton("Disable Permanently", (dialog, which) -> {
+                .setNeutralButton(R.string.pause_dialog_disable_permanently, (dialog, which) -> {
                     if (rule != null) {
                         config.setRuleEnabled(rule, false);
                         config.setRulePausedUntil(rule, 0);
@@ -529,7 +532,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     rebuildItemsList();
                     notifyService();
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> rebuildItemsList())
+                .setNegativeButton(R.string.pause_dialog_cancel, (dialog, which) -> rebuildItemsList())
                 .setOnCancelListener(dialog -> rebuildItemsList())
                 .show();
     }

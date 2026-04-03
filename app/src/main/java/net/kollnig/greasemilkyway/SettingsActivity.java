@@ -1,7 +1,6 @@
 package net.kollnig.greasemilkyway;
 
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
@@ -9,9 +8,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.app.AlertDialog;
 import android.widget.NumberPicker;
-
-import android.content.res.Configuration;
-import android.view.WindowInsetsController;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -49,7 +45,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         config = new ServiceConfig(this);
 
-        setupNavigationBarColor();
+        NavigationBarHelper.setup(this);
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -170,31 +166,6 @@ public class SettingsActivity extends AppCompatActivity {
             );
             return insets;
         });
-    }
-
-    private void setupNavigationBarColor() {
-        int backgroundColor = getResources().getColor(R.color.background_main, getTheme());
-        getWindow().setNavigationBarColor(backgroundColor);
-
-        boolean isLightMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                != Configuration.UI_MODE_NIGHT_YES;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
-                controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            View decorView = getWindow().getDecorView();
-            int flags = decorView.getSystemUiVisibility();
-            if (isLightMode) {
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            } else {
-                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            }
-            decorView.setSystemUiVisibility(flags);
-        }
     }
 
     @Override

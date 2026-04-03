@@ -1,7 +1,6 @@
 package net.kollnig.greasemilkyway;
 
 import android.content.Intent;
-import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -10,7 +9,6 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.WindowInsetsController;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.activity.result.ActivityResultLauncher;
@@ -54,12 +52,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         
         // Setup navigation bar color and icon appearance
-        setupNavigationBarColor();
+        NavigationBarHelper.setup(this);
 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle(R.string.app_name);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(R.string.app_name);
+        }
 
         // Initialize config
         config = new ServiceConfig(this);
@@ -224,34 +224,6 @@ public class MainActivity extends AppCompatActivity {
             Log.d("SettingsActivity", "Rule for " + rule.packageName + " with description: " + rule.description);
         }
         adapter.setRules(rules);
-    }
-
-    private void setupNavigationBarColor() {
-        // Get the background color from theme
-        int backgroundColor = getResources().getColor(R.color.background_main, getTheme());
-        // Set navigation bar color to match app background
-        getWindow().setNavigationBarColor(backgroundColor);
-        
-        // Set navigation bar icon color: grey in light mode, white in dark mode
-        boolean isLightMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
-                             != Configuration.UI_MODE_NIGHT_YES;
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                int appearance = isLightMode ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0;
-                controller.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            View decorView = getWindow().getDecorView();
-            int flags = decorView.getSystemUiVisibility();
-            if (isLightMode) {
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            } else {
-                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            }
-            decorView.setSystemUiVisibility(flags);
-        }
     }
 
     private void setupNavigationBarPadding() {
