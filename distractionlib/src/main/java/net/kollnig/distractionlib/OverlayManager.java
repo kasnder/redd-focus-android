@@ -60,15 +60,18 @@ public class OverlayManager {
 
     public void clearOverlays(WindowManager windowManager, Handler ui) {
         if (overlays.isEmpty()) return;
-        for (View v : new ArrayList<>(overlays)) {
+        List<View> snapshot = new ArrayList<>(overlays);
+        overlays.clear();
+        for (View v : snapshot) {
             ui.post(() -> {
                 try {
-                    windowManager.removeView(v);
+                    if (v.getParent() != null) {
+                        windowManager.removeView(v);
+                    }
                 } catch (Exception e) {
                     Log.e(TAG, "Error removing overlay", e);
                 }
             });
-            overlays.remove(v);
         }
     }
 

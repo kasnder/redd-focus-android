@@ -110,7 +110,7 @@ public class FrictionGateActivity extends AppCompatActivity {
     }
 
     private void updateUI() {
-        tvProgress.setText("Word " + (currentWordIndex + 1) + " of " + wordCount);
+        tvProgress.setText(getString(R.string.friction_gate_progress, currentWordIndex + 1, wordCount));
         progressBar.setProgress((int) (((float) currentWordIndex / wordCount) * 100));
         tvCurrentWord.setText(words.get(currentWordIndex));
         tilUserInput.setError(null);

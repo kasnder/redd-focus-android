@@ -26,14 +26,14 @@ public class ElementPickerRuleGenerator {
             if (path != null) {
                 rule.append("##path=").append(path);
             } else if (text != null && text.length() > 0) {
-                rule.append("##text=").append(text);
+                rule.append("##text=").append(sanitizeRuleValue(text.toString()));
             } else if (className != null && className.length() > 0) {
                 rule.append("##className=").append(className);
             }
         }
 
         if (comment != null && !comment.isEmpty()) {
-            rule.append("##comment=").append(comment);
+            rule.append("##comment=").append(sanitizeRuleValue(comment));
         }
 
         return rule.toString();
@@ -176,7 +176,7 @@ public class ElementPickerRuleGenerator {
         }
 
         if (comment != null && !comment.isEmpty()) {
-            rule.append("##comment=").append(comment);
+            rule.append("##comment=").append(sanitizeRuleValue(comment));
         }
 
         return rule.toString();
@@ -242,6 +242,15 @@ public class ElementPickerRuleGenerator {
         }
 
         return path.toString();
+    }
+
+    /**
+     * Sanitizes a value for use in a filter rule field.
+     * Removes the ## separator to prevent rule injection.
+     */
+    static String sanitizeRuleValue(String value) {
+        if (value == null) return null;
+        return value.replace("##", "");
     }
 
     private static String truncate(String s, int max) {

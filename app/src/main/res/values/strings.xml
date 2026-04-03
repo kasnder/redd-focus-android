@@ -105,6 +105,13 @@
     <!-- Recruitment -->
     <string name="recruitment_message">You like this app? Reach out to konrad.kollnig@maastrichtuniversity.nl to support our research</string>
 
+    <!-- Pause dialog -->
+    <string name="pause_dialog_title">Disable Rule</string>
+    <string name="pause_dialog_message">Do you want to pause for %d minutes or disable permanently?</string>
+    <string name="pause_dialog_pause">Pause (%dm)</string>
+    <string name="pause_dialog_disable_permanently">Disable Permanently</string>
+    <string name="pause_dialog_cancel">Cancel</string>
+
     <!-- Pause state labels -->
     <string name="paused_until">⏳ Paused until %s</string>
     <string name="rule_disabled">Disabled</string>

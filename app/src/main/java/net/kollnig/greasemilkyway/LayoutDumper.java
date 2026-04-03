@@ -78,7 +78,7 @@ public class LayoutDumper {
 
         String viewId = node.getViewIdResourceName();
         if (viewId != null) {
-            json.append("  \"viewId\": \"").append(viewId).append("\",\n");
+            json.append("  \"viewId\": \"").append(viewId.replace("\"", "\\\"")).append("\",\n");
         }
 
         String text = node.getText() != null ? node.getText().toString() : "";
