@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Shared accessibility service logic for distraction blocking apps.
@@ -37,7 +36,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public abstract class BaseDistractionControlService extends AccessibilityService {
     private static final int MAX_OVERLAY_COUNT = 100;
 
-    private final List<FilterRule> rules = new CopyOnWriteArrayList<>();
+    private final List<FilterRule> rules = new ArrayList<>();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final OverlayManager overlayManager = new OverlayManager();
     private final Map<String, BlockedElement> blockedElements = new HashMap<>();
@@ -476,16 +475,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                         if (childClass != null && childClass.toString().equals(className)) {
                             if (matchCount == index) {
                                 match = child;
-                                // Continue iterating to recycle remaining children
-                            } else if (match == null) {
-                                matchCount++;
-                                child.recycle();
-                            } else {
-                                child.recycle();
+                                break;
                             }
-                        } else {
-                            child.recycle();
+                            matchCount++;
                         }
+                        child.recycle();
                     }
                     if (match != null) {
                         nextNodes.add(match);
