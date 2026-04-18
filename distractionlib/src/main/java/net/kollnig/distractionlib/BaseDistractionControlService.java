@@ -35,12 +35,16 @@ import java.util.Set;
 @SuppressLint("AccessibilityPolicy")
 public abstract class BaseDistractionControlService extends AccessibilityService {
     private static final int MAX_OVERLAY_COUNT = 100;
+    // Absorbs transient foreign-window events (notification shade, status bar
+    // updates) that briefly take focus while the target app remains below.
+    private static final long CLEAR_OVERLAYS_DELAY_MS = 150;
 
     private final List<FilterRule> rules = new ArrayList<>();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final OverlayManager overlayManager = new OverlayManager();
     private final Map<String, BlockedElement> blockedElements = new HashMap<>();
     private final Set<String> activeRuleKeys = new HashSet<>();
+    private final Runnable pendingClear = this::forceClearAllOverlays;
 
     private WindowManager windowManager;
     private boolean isDarkMode;
@@ -120,6 +124,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     protected final void reloadRulesFromSource() {
         ui.removeCallbacks(processEvent);
+        ui.removeCallbacks(pendingClear);
         rules.clear();
         List<FilterRule> loadedRules = loadRules();
         if (loadedRules != null) {
@@ -133,6 +138,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     protected final void reevaluateBlockingState() {
         ui.removeCallbacks(processEvent);
+        ui.removeCallbacks(pendingClear);
         if (!shouldProcessRules()) {
             forceClearAllOverlays();
             return;
@@ -184,6 +190,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     screenOn = false;
                     Log.d(getLogTag(), "Screen off - pausing accessibility processing");
                     ui.removeCallbacks(processEvent);
+                    ui.removeCallbacks(pendingClear);
                     forceClearAllOverlays();
                 } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                     screenOn = true;
@@ -214,31 +221,43 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             return;
         }
 
-        String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
-
-        if (packageName.equals(getPackageName())
-                || packageName.equals("com.android.systemui")
-                || isLauncherPackage(packageName)) {
-            ui.removeCallbacks(processEvent);
-            forceClearAllOverlays();
-            return;
-        }
-
-        if (!hasMatchingRule(packageName)) {
-            ui.removeCallbacks(processEvent);
-            forceClearAllOverlays();
-            return;
-        }
-
-        if (!shouldProcessRules()) {
-            forceClearAllOverlays();
-            return;
-        }
-
         int eventType = event.getEventType();
         if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
                 && eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                 && eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            return;
+        }
+
+        String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
+
+        boolean isNonTarget = packageName.equals(getPackageName())
+                || packageName.equals("com.android.systemui")
+                || isLauncherPackage(packageName)
+                || !hasMatchingRule(packageName);
+
+        if (isNonTarget) {
+            // Only a window-state change is a definitive leave signal. Content
+            // changes / scrolls from systemui or the launcher can fire while
+            // the target app is still the active window below (e.g. a new
+            // notification arriving, or status bar animation).
+            if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                ui.removeCallbacks(processEvent);
+                ui.removeCallbacks(pendingClear);
+                // Delay the clear so a quick shade pull-and-release, or a
+                // transient launcher preview, does not cause the overlay to
+                // disappear and immediately reappear. A real app switch still
+                // clears within CLEAR_OVERLAYS_DELAY_MS.
+                ui.postDelayed(pendingClear, CLEAR_OVERLAYS_DELAY_MS);
+            }
+            return;
+        }
+
+        // Target package event — cancel any pending clear from a transient
+        // foreign window, then re-evaluate overlays.
+        ui.removeCallbacks(pendingClear);
+
+        if (!shouldProcessRules()) {
+            forceClearAllOverlays();
             return;
         }
 
@@ -637,6 +656,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     @Override
     public void onInterrupt() {
+        ui.removeCallbacks(pendingClear);
         forceClearAllOverlays();
     }
 
@@ -644,6 +664,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     public void onDestroy() {
         super.onDestroy();
         try {
+            ui.removeCallbacks(processEvent);
+            ui.removeCallbacks(pendingClear);
             onServiceTeardown();
             if (screenReceiver != null) {
                 try {

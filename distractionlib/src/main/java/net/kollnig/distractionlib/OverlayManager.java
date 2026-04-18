@@ -63,12 +63,14 @@ public class OverlayManager {
         for (View v : new ArrayList<>(overlays)) {
             ui.post(() -> {
                 try {
-                    windowManager.removeView(v);
+                    if (v.getParent() != null) {
+                        windowManager.removeView(v);
+                    }
                 } catch (Exception e) {
                     Log.e(TAG, "Error removing overlay", e);
                 }
+                overlays.remove(v);
             });
-            overlays.remove(v);
         }
     }
 
