@@ -15,6 +15,7 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -35,6 +36,12 @@ import java.util.Set;
 @SuppressLint("AccessibilityPolicy")
 public abstract class BaseDistractionControlService extends AccessibilityService {
     private static final int MAX_OVERLAY_COUNT = 100;
+    /**
+     * Keep an overlay alive for this long after its target node last appeared in a scan.
+     * Prevents flicker when a node briefly fails isVisibleToUser() or disappears from the
+     * hierarchy during scrolls, animations, or TYPE_WINDOW_CONTENT_CHANGED transitions.
+     */
+    private static final long OVERLAY_GRACE_MS = 500;
 
     private final List<FilterRule> rules = new ArrayList<>();
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -66,16 +73,18 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 activeRuleKeys.clear();
                 processRootNode(root);
 
+                long now = SystemClock.uptimeMillis();
                 List<String> toRemove = new ArrayList<>();
                 for (Map.Entry<String, BlockedElement> entry : blockedElements.entrySet()) {
-                    if (!activeRuleKeys.contains(entry.getKey())) {
+                    if (!activeRuleKeys.contains(entry.getKey())
+                            && (now - entry.getValue().lastSeenMs) >= OVERLAY_GRACE_MS) {
                         toRemove.add(entry.getKey());
                     }
                 }
                 for (String key : toRemove) {
                     BlockedElement element = blockedElements.remove(key);
                     if (element != null) {
-                        overlayManager.removeOverlay(element.overlay, windowManager, ui);
+                        overlayManager.removeOverlay(element.overlay, windowManager);
                     }
                 }
                 removeSentinelsIfIdle();
@@ -562,9 +571,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private void addOverlay(Rect area, FilterRule rule, int matchIndex) {
         String ruleKey = getRuleKey(rule, matchIndex);
         activeRuleKeys.add(ruleKey);
+        long now = SystemClock.uptimeMillis();
 
         BlockedElement existing = blockedElements.get(ruleKey);
         if (existing != null) {
+            existing.lastSeenMs = now;
             if (existing.bounds.equals(area)) {
                 return;
             }
@@ -580,7 +591,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, flags,
                     PixelFormat.TRANSLUCENT);
             lp.gravity = Gravity.TOP | Gravity.START;
-            overlayManager.updateOverlay(existing.overlay, lp, windowManager, ui);
+            overlayManager.updateOverlay(existing.overlay, lp, windowManager);
             existing.bounds.set(area);
             return;
         }
@@ -609,8 +620,10 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
 
-        overlayManager.addOverlay(blocker, lp, windowManager, ui);
-        blockedElements.put(ruleKey, new BlockedElement(blocker, new Rect(area)));
+        BlockedElement element = new BlockedElement(blocker, new Rect(area));
+        element.lastSeenMs = now;
+        blockedElements.put(ruleKey, element);
+        overlayManager.addOverlay(blocker, lp, windowManager);
 
         if (!sentinelPackagesActive) {
             configureAccessibilityService(true);
@@ -618,15 +631,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void clearAllOverlays() {
-        overlayManager.clearOverlays(windowManager, ui);
+        overlayManager.clearOverlays(windowManager);
         blockedElements.clear();
         removeSentinelsIfIdle();
     }
 
     private void forceClearAllOverlays() {
-        overlayManager.forceClearOverlays(windowManager);
-        blockedElements.clear();
-        removeSentinelsIfIdle();
+        clearAllOverlays();
     }
 
     private void removeSentinelsIfIdle() {
@@ -659,6 +670,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private static class BlockedElement {
         final View overlay;
         final Rect bounds;
+        long lastSeenMs;
 
         BlockedElement(View overlay, Rect bounds) {
             this.overlay = overlay;
