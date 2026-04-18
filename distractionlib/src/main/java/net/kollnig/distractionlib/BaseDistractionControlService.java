@@ -79,7 +79,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 for (String key : toRemove) {
                     BlockedElement element = blockedElements.remove(key);
                     if (element != null) {
-                        overlayManager.removeOverlay(element.overlay, windowManager, ui);
+                        overlayManager.removeOverlay(element.overlay, windowManager);
                     }
                 }
                 removeSentinelsIfIdle();
@@ -599,7 +599,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, flags,
                     PixelFormat.TRANSLUCENT);
             lp.gravity = Gravity.TOP | Gravity.START;
-            overlayManager.updateOverlay(existing.overlay, lp, windowManager, ui);
+            overlayManager.updateOverlay(existing.overlay, lp, windowManager);
             existing.bounds.set(area);
             return;
         }
@@ -628,7 +628,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
 
-        overlayManager.addOverlay(blocker, lp, windowManager, ui);
+        overlayManager.addOverlay(blocker, lp, windowManager);
         blockedElements.put(ruleKey, new BlockedElement(blocker, new Rect(area)));
 
         if (!sentinelPackagesActive) {
@@ -637,15 +637,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void clearAllOverlays() {
-        overlayManager.clearOverlays(windowManager, ui);
+        overlayManager.clearOverlays(windowManager);
         blockedElements.clear();
         removeSentinelsIfIdle();
     }
 
     private void forceClearAllOverlays() {
-        overlayManager.forceClearOverlays(windowManager);
-        blockedElements.clear();
-        removeSentinelsIfIdle();
+        clearAllOverlays();
     }
 
     private void removeSentinelsIfIdle() {
