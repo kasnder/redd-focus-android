@@ -51,6 +51,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private boolean sentinelPackagesActive;
     private boolean screenOn = true;
     private String cachedLauncherPackage;
+    private String pauseNotificationPackage;
     private BroadcastReceiver screenReceiver;
 
     private final Runnable processEvent = () -> {
@@ -110,6 +111,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     protected void onRulesReloaded() {
     }
 
+    protected void onPauseNotificationShouldShow(String packageName) {
+    }
+
+    protected void onPauseNotificationShouldCancel() {
+    }
+
     protected final Handler getUiHandler() {
         return ui;
     }
@@ -131,6 +138,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             rules.addAll(loadedRules);
         }
         clearAllOverlays();
+        updatePauseNotificationForCurrentPackage();
         configureAccessibilityService(false);
         onRulesReloaded();
         Log.i(getLogTag(), "Accessibility service initialized with " + rules.size() + " rule(s)");
@@ -191,6 +199,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     Log.d(getLogTag(), "Screen off - pausing accessibility processing");
                     ui.removeCallbacks(processEvent);
                     ui.removeCallbacks(pendingClear);
+                    cancelPauseNotification();
                     forceClearAllOverlays();
                 } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                     screenOn = true;
@@ -257,10 +266,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         ui.removeCallbacks(pendingClear);
 
         if (!shouldProcessRules()) {
+            cancelPauseNotification();
             forceClearAllOverlays();
             return;
         }
 
+        showPauseNotification(packageName);
         ui.removeCallbacks(processEvent);
         ui.post(processEvent);
     }
@@ -272,6 +283,33 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             }
         }
         return false;
+    }
+
+    private void updatePauseNotificationForCurrentPackage() {
+        if (pauseNotificationPackage == null) {
+            return;
+        }
+        if (hasMatchingRule(pauseNotificationPackage)) {
+            onPauseNotificationShouldShow(pauseNotificationPackage);
+        } else {
+            cancelPauseNotification();
+        }
+    }
+
+    private void showPauseNotification(String packageName) {
+        if (packageName == null || packageName.isEmpty() || packageName.equals(pauseNotificationPackage)) {
+            return;
+        }
+        pauseNotificationPackage = packageName;
+        onPauseNotificationShouldShow(packageName);
+    }
+
+    private void cancelPauseNotification() {
+        if (pauseNotificationPackage == null) {
+            return;
+        }
+        pauseNotificationPackage = null;
+        onPauseNotificationShouldCancel();
     }
 
     private void configureAccessibilityService(boolean includeSentinels) {
@@ -655,6 +693,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     @Override
     public void onInterrupt() {
         ui.removeCallbacks(pendingClear);
+        cancelPauseNotification();
         forceClearAllOverlays();
     }
 
@@ -664,6 +703,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         try {
             ui.removeCallbacks(processEvent);
             ui.removeCallbacks(pendingClear);
+            cancelPauseNotification();
             onServiceTeardown();
             if (screenReceiver != null) {
                 try {

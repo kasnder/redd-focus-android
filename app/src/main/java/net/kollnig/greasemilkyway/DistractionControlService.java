@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -23,6 +25,7 @@ public class DistractionControlService extends BaseDistractionControlService {
     private ServiceConfig config;
     private LayoutDumper layoutDumper;
     private ElementPickerNotification pickerNotification;
+    private PauseNotification pauseNotification;
     private ElementPickerOverlay pickerOverlay;
     private BroadcastReceiver pickerReceiver;
     private final Runnable updateRulesRunnable = this::updateRules;
@@ -70,6 +73,7 @@ public class DistractionControlService extends BaseDistractionControlService {
         layoutDumper.start();
 
         pickerNotification = new ElementPickerNotification(this);
+        pauseNotification = new PauseNotification(this);
         pickerOverlay = new ElementPickerOverlay(this, getOverlayWindowManager(),
                 new ElementPickerOverlay.Listener() {
                     @Override
@@ -120,6 +124,9 @@ public class DistractionControlService extends BaseDistractionControlService {
         if (pickerNotification != null) {
             pickerNotification.cancelNotification();
         }
+        if (pauseNotification != null) {
+            pauseNotification.cancel();
+        }
         if (pickerReceiver != null) {
             try {
                 unregisterReceiver(pickerReceiver);
@@ -131,6 +138,20 @@ public class DistractionControlService extends BaseDistractionControlService {
     @Override
     protected void onRulesReloaded() {
         scheduleNextRuleUpdate();
+    }
+
+    @Override
+    protected void onPauseNotificationShouldShow(String packageName) {
+        if (pauseNotification != null) {
+            pauseNotification.show(packageName, getAppLabel(packageName));
+        }
+    }
+
+    @Override
+    protected void onPauseNotificationShouldCancel() {
+        if (pauseNotification != null) {
+            pauseNotification.cancel();
+        }
     }
 
     public void startPickerMode() {
@@ -201,6 +222,16 @@ public class DistractionControlService extends BaseDistractionControlService {
             long delay = Math.max(0, nextUpdate - currentTime);
             Log.d(TAG, "Scheduling rules update in " + (delay / 1000) + " seconds");
             getUiHandler().postDelayed(updateRulesRunnable, delay);
+        }
+    }
+
+    private String getAppLabel(String packageName) {
+        try {
+            PackageManager packageManager = getPackageManager();
+            ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
+            return packageManager.getApplicationLabel(appInfo).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return packageName;
         }
     }
 }

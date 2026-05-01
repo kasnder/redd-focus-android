@@ -483,16 +483,15 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 .setTitle("Disable Rule")
                 .setMessage(message)
                 .setPositiveButton("Pause (" + durationMins + "m)", (dialog, which) -> {
-                    long until = System.currentTimeMillis() + (durationMins * 60 * 1000L);
                     if (rule != null) {
+                        long until = System.currentTimeMillis() + (durationMins * 60 * 1000L);
                         config.setRuleEnabled(rule, false);
                         config.setRulePausedUntil(rule, until);
                         rule.enabled = false;
                         rule.isPaused = true;
                         rule.pausedUntil = until;
                     } else {
-                        config.setPackageDisabled(packageName, true);
-                        config.setPackagePausedUntil(packageName, until);
+                        long until = PauseManager.applyPackagePause(context, packageName);
                         // Update in-memory state for UI only; individual rule prefs are
                         // intentionally left untouched so they can be restored on re-enable.
                         for (FilterRule r : currentRules) {
@@ -504,7 +503,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                         }
                     }
                     rebuildItemsList();
-                    notifyService();
+                    if (rule != null) {
+                        notifyService();
+                    }
                 })
                 .setNeutralButton("Disable Permanently", (dialog, which) -> {
                     if (rule != null) {

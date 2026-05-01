@@ -1,6 +1,8 @@
 package net.kollnig.greasemilkyway;
 
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
@@ -30,12 +32,17 @@ import net.kollnig.distractionlib.FrictionGateActivity;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
+    public static final String ACTION_PAUSE_PACKAGE = "net.kollnig.greasemilkyway.ACTION_PAUSE_PACKAGE";
+    public static final String EXTRA_PACKAGE_NAME = "net.kollnig.greasemilkyway.EXTRA_PACKAGE_NAME";
+    public static final String EXTRA_RETURN_TO_PACKAGE = "net.kollnig.greasemilkyway.EXTRA_RETURN_TO_PACKAGE";
+
     private ServiceConfig config;
     private RulesAdapter adapter;
 
     private AlertDialog accessibilityPromptDialog;
 
     private Runnable onFrictionGatePassed;
+    private Runnable onFrictionGateCancelled;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -44,8 +51,12 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     // Friction gate was cancelled - reload to restore switch state and listeners
                     loadSettings();
+                    if (onFrictionGateCancelled != null) {
+                        onFrictionGateCancelled.run();
+                    }
                 }
                 onFrictionGatePassed = null;
+                onFrictionGateCancelled = null;
             });
 
     @Override
@@ -74,9 +85,17 @@ public class MainActivity extends AppCompatActivity {
 
         // Load current settings
         loadSettings();
+        handleIntent(getIntent());
 
         // Setup navigation bar padding - reduces available height to push content above nav bar
         setupNavigationBarPadding();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
     }
 
     private void showAccessibilityPrompt() {
@@ -190,6 +209,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void runWithFrictionGate(String contextTitle, Runnable action) {
+        runWithFrictionGate(contextTitle, action, null);
+    }
+
+    public void runWithFrictionGate(String contextTitle, Runnable action, Runnable onCancel) {
         int wordCount = config.getFrictionWordCount();
         if (wordCount <= 0) {
             action.run();
@@ -197,10 +220,51 @@ public class MainActivity extends AppCompatActivity {
         }
 
         this.onFrictionGatePassed = action;
+        this.onFrictionGateCancelled = onCancel;
         Intent intent = new Intent(this, FrictionGateActivity.class);
         intent.putExtra("WORD_COUNT", wordCount);
         intent.putExtra("CONTEXT_TITLE", contextTitle);
         frictionGateLauncher.launch(intent);
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent == null || !ACTION_PAUSE_PACKAGE.equals(intent.getAction())) {
+            return;
+        }
+
+        String packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME);
+        String returnToPackage = intent.getStringExtra(EXTRA_RETURN_TO_PACKAGE);
+        intent.setAction(null);
+
+        if (packageName == null || packageName.isEmpty()) {
+            finish();
+            return;
+        }
+
+        String appLabel = getAppLabel(packageName);
+        runWithFrictionGate("Pause " + appLabel, () -> {
+            PauseManager.applyPackagePause(this, packageName);
+            relaunchPackage(returnToPackage != null ? returnToPackage : packageName);
+            finish();
+        }, this::finish);
+    }
+
+    private String getAppLabel(String packageName) {
+        try {
+            PackageManager packageManager = getPackageManager();
+            ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
+            return packageManager.getApplicationLabel(appInfo).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return packageName;
+        }
+    }
+
+    private void relaunchPackage(String packageName) {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(launchIntent);
+        }
     }
 
     @Override
