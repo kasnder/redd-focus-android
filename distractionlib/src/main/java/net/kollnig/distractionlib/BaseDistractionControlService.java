@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
+import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -44,15 +45,21 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private final OverlayManager overlayManager = new OverlayManager();
     private final Map<String, BlockedElement> blockedElements = new HashMap<>();
     private final Set<String> activeRuleKeys = new HashSet<>();
-    private final Runnable pendingClear = this::forceClearAllOverlays;
+    private final Runnable pendingClear = this::clearOverlaysIfActiveWindowIsNonTarget;
 
     private WindowManager windowManager;
     private boolean isDarkMode;
     private boolean sentinelPackagesActive;
     private boolean screenOn = true;
+    private boolean processEventScheduled;
     private String cachedLauncherPackage;
     private String pauseNotificationPackage;
     private BroadcastReceiver screenReceiver;
+
+    private final Choreographer.FrameCallback processEventFrame = frameTimeNanos -> {
+        processEventScheduled = false;
+        runProcessEvent();
+    };
 
     private final Runnable processEvent = () -> {
         try {
@@ -92,6 +99,10 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         }
     };
 
+    private void runProcessEvent() {
+        processEvent.run();
+    }
+
     protected abstract List<FilterRule> loadRules();
 
     protected abstract boolean shouldProcessRules();
@@ -130,7 +141,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     protected final void reloadRulesFromSource() {
-        ui.removeCallbacks(processEvent);
+        cancelProcessEvent();
         ui.removeCallbacks(pendingClear);
         rules.clear();
         List<FilterRule> loadedRules = loadRules();
@@ -145,13 +156,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     protected final void reevaluateBlockingState() {
-        ui.removeCallbacks(processEvent);
+        cancelProcessEvent();
         ui.removeCallbacks(pendingClear);
         if (!shouldProcessRules()) {
             forceClearAllOverlays();
             return;
         }
-        ui.post(processEvent);
+        scheduleProcessEvent();
     }
 
     protected final void clearCurrentOverlays() {
@@ -197,7 +208,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                     screenOn = false;
                     Log.d(getLogTag(), "Screen off - pausing accessibility processing");
-                    ui.removeCallbacks(processEvent);
+                    cancelProcessEvent();
                     ui.removeCallbacks(pendingClear);
                     cancelPauseNotification();
                     forceClearAllOverlays();
@@ -233,7 +244,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         int eventType = event.getEventType();
         if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
                 && eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-                && eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+                && eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED
+                && eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             return;
         }
 
@@ -245,19 +257,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 || !hasMatchingRule(packageName);
 
         if (isNonTarget) {
-            // Only a window-state change is a definitive leave signal. Content
-            // changes / scrolls from systemui or the launcher can fire while
-            // the target app is still the active window below (e.g. a new
-            // notification arriving, or status bar animation).
-            if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                ui.removeCallbacks(processEvent);
-                ui.removeCallbacks(pendingClear);
-                // Delay the clear so a quick shade pull-and-release, or a
-                // transient launcher preview, does not cause the overlay to
-                // disappear and immediately reappear. A real app switch still
-                // clears within CLEAR_OVERLAYS_DELAY_MS.
-                ui.postDelayed(pendingClear, CLEAR_OVERLAYS_DELAY_MS);
-            }
+            cancelProcessEvent();
+            ui.removeCallbacks(pendingClear);
+            // SystemUI often reports notification-shade movement as content or
+            // scroll changes rather than a clean window-state change. Delay,
+            // then inspect the active root window before clearing so transient
+            // notifications do not flicker target-app overlays.
+            ui.postDelayed(pendingClear, CLEAR_OVERLAYS_DELAY_MS);
             return;
         }
 
@@ -272,8 +278,48 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         }
 
         showPauseNotification(packageName);
+        scheduleProcessEvent();
+    }
+
+    private void scheduleProcessEvent() {
+        if (processEventScheduled) {
+            return;
+        }
+        processEventScheduled = true;
+        Choreographer.getInstance().postFrameCallback(processEventFrame);
+    }
+
+    private void cancelProcessEvent() {
         ui.removeCallbacks(processEvent);
-        ui.post(processEvent);
+        if (processEventScheduled) {
+            Choreographer.getInstance().removeFrameCallback(processEventFrame);
+            processEventScheduled = false;
+        }
+    }
+
+    private void clearOverlaysIfActiveWindowIsNonTarget() {
+        AccessibilityNodeInfo root = null;
+        try {
+            root = getRootInActiveWindow();
+            if (root == null) {
+                forceClearAllOverlays();
+                return;
+            }
+
+            CharSequence rootPkg = root.getPackageName();
+            if (rootPkg == null || !hasMatchingRule(rootPkg) || !shouldProcessRules()) {
+                forceClearAllOverlays();
+            } else {
+                scheduleProcessEvent();
+            }
+        } catch (Exception e) {
+            Log.e(getLogTag(), "Error checking active window before clearing overlays", e);
+            forceClearAllOverlays();
+        } finally {
+            if (root != null) {
+                root.recycle();
+            }
+        }
     }
 
     private boolean hasMatchingRule(CharSequence packageName) {
@@ -329,18 +375,16 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 }
             }
 
-            if (!packages.isEmpty() && includeSentinels) {
-                packages.add("com.android.systemui");
-                String launcher = getLauncherPackage();
-                if (launcher != null) {
-                    packages.add(launcher);
-                }
-            }
-
             sentinelPackagesActive = includeSentinels;
-            info.packageNames = packages.isEmpty() ? null : packages.toArray(new String[0]);
+            // While overlays are attached, temporarily observe all packages so
+            // any foreground transition can clear them. The stricter target-app
+            // filter is restored as soon as overlays are gone.
+            info.packageNames = packages.isEmpty() || includeSentinels
+                    ? null
+                    : packages.toArray(new String[0]);
             setServiceInfo(info);
-            Log.i(getLogTag(), "Package filter updated: " + packages);
+            Log.i(getLogTag(), "Package filter updated: "
+                    + (info.packageNames == null ? "all packages" : packages));
         } catch (Exception e) {
             Log.e(getLogTag(), "Error configuring accessibility service", e);
         }
@@ -635,7 +679,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                     area.width(), area.height(), area.left, area.top,
                     WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, flags,
-                    PixelFormat.TRANSLUCENT);
+                    getOverlayPixelFormat(rule));
             lp.gravity = Gravity.TOP | Gravity.START;
             overlayManager.updateOverlay(existing.overlay, lp, windowManager);
             existing.bounds.set(area);
@@ -663,7 +707,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 area.width(), area.height(), area.left, area.top,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, flags,
-                PixelFormat.TRANSLUCENT);
+                getOverlayPixelFormat(rule));
         lp.gravity = Gravity.TOP | Gravity.START;
 
         overlayManager.addOverlay(blocker, lp, windowManager);
@@ -678,6 +722,14 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         overlayManager.clearOverlays(windowManager);
         blockedElements.clear();
         removeSentinelsIfIdle();
+    }
+
+    private int getOverlayPixelFormat(FilterRule rule) {
+        int color = rule.color;
+        if (color == Color.WHITE && isDarkMode && !rule.ruleString.contains("color=")) {
+            color = Color.BLACK;
+        }
+        return Color.alpha(color) == 255 ? PixelFormat.OPAQUE : PixelFormat.TRANSLUCENT;
     }
 
     private void forceClearAllOverlays() {
@@ -701,7 +753,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     public void onDestroy() {
         super.onDestroy();
         try {
-            ui.removeCallbacks(processEvent);
+            cancelProcessEvent();
             ui.removeCallbacks(pendingClear);
             cancelPauseNotification();
             onServiceTeardown();
