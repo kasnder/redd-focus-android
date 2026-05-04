@@ -29,16 +29,19 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
     private TextView tvNotificationTimeoutSubtitle;
+    private Runnable pendingFrictionAction;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK) {
-                    // Passed the gate, reveal settings
-                    initViews();
+                    Runnable action = pendingFrictionAction;
+                    pendingFrictionAction = null;
+                    if (action != null) {
+                        action.run();
+                    }
                 } else {
-                    // Failed or backed out, close settings
-                    Toast.makeText(this, "Friction Gate cancelled. Settings locked.", Toast.LENGTH_SHORT).show();
-                    finish();
+                    pendingFrictionAction = null;
+                    Toast.makeText(this, R.string.friction_gate_cancelled, Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -59,18 +62,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         setupWindowInsets();
 
-        // Hide main content initially if friction gate is active
-        findViewById(R.id.main).setVisibility(View.INVISIBLE);
-
-        int requiredWords = config.getFrictionWordCount();
-        if (requiredWords > 0) {
-            Intent intent = new Intent(this, FrictionGateActivity.class);
-            intent.putExtra("WORD_COUNT", requiredWords);
-            intent.putExtra("CONTEXT_TITLE", "Unlock Settings");
-            frictionGateLauncher.launch(intent);
-        } else {
-            initViews();
-        }
+        initViews();
     }
 
     private void initViews() {
@@ -84,15 +76,19 @@ public class SettingsActivity extends AppCompatActivity {
 
         findViewById(R.id.btn_custom_rules).setOnClickListener(v -> startActivity(new Intent(SettingsActivity.this, CustomRulesActivity.class)));
 
-        findViewById(R.id.btn_friction_gate).setOnClickListener(v -> showNumberPickerDialog("Friction Gate Words", "Choose number of words (0-15)", 0, 15, config.getFrictionWordCount(), newValue -> {
+        findViewById(R.id.btn_friction_gate).setOnClickListener(v -> runWithFrictionGate(
+                getString(R.string.unlock_friction_settings),
+                () -> showNumberPickerDialog("Friction Gate Words", "Choose number of words (0-15)", 0, 15, config.getFrictionWordCount(), newValue -> {
             config.setFrictionWordCount(newValue);
             updateSubtitles();
-        }));
+        })));
 
-        findViewById(R.id.btn_pause_duration).setOnClickListener(v -> showNumberPickerDialog("Pause Duration", "Choose default pause in minutes (1-120)", 1, 120, config.getPauseDurationMins(), newValue -> {
+        findViewById(R.id.btn_pause_duration).setOnClickListener(v -> runWithFrictionGate(
+                getString(R.string.unlock_friction_settings),
+                () -> showNumberPickerDialog("Pause Duration", "Choose default pause in minutes (1-120)", 1, 120, config.getPauseDurationMins(), newValue -> {
             config.setPauseDurationMins(newValue);
             updateSubtitles();
-        }));
+        })));
 
         findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> {
             final String[] labels = {"Immediate response", "Default (recommended)", "Battery saver"};
@@ -119,6 +115,20 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
         });
+    }
+
+    private void runWithFrictionGate(String contextTitle, Runnable action) {
+        int requiredWords = config.getFrictionWordCount();
+        if (requiredWords <= 0) {
+            action.run();
+            return;
+        }
+
+        pendingFrictionAction = action;
+        Intent intent = new Intent(this, FrictionGateActivity.class);
+        intent.putExtra(FrictionGateActivity.EXTRA_WORD_COUNT, requiredWords);
+        intent.putExtra(FrictionGateActivity.EXTRA_CONTEXT_TITLE, contextTitle);
+        frictionGateLauncher.launch(intent);
     }
 
     private void updateSubtitles() {

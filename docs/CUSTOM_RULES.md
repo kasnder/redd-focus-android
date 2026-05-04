@@ -20,6 +20,7 @@ Common keys:
 - `viewId`: match a specific Android view ID
 - `desc`: match a content description
 - `path`: match a view hierarchy path
+- `category`: group related rules in the rule list
 - `comment`: add a human-readable note
 - `color`: optional fallback color
 - `blockTouches`: whether touches should pass through
@@ -27,9 +28,9 @@ Common keys:
 ## Examples
 
 ```text
-com.example.app##viewId=com.example.app:id/distracting_element##comment=Hide distracting panel
-com.example.app##desc=Recommended content##comment=Hide recommendation row
-com.example.app##path=android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed cards
+com.example.app##category=Feed##viewId=com.example.app:id/distracting_element##comment=Hide distracting panel
+com.example.app##category=Recommendations##desc=Recommended content##comment=Hide recommendation row
+com.example.app##category=Feed##path=android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed cards
 ```
 
 ## Built-In Rules
@@ -49,6 +50,7 @@ Because Android interfaces change often, always test a custom rule after creatin
 - Start with `viewId` when possible because it is usually the most stable.
 - Use `desc` for elements that expose a reliable content description.
 - Use `path` only when there is no better identifier.
+- Use `category` to group related rules. If omitted, custom rules appear under Custom rules.
 - Keep comments clear so future edits are easier.
 - Re-check custom rules after app updates because screen layouts may change.
 
@@ -56,6 +58,7 @@ Because Android interfaces change often, always test a custom rule after creatin
 
 If you want to contribute a new built-in rule:
 1. Verify that it works reliably.
-2. Make sure the comment clearly explains the affected interface element.
-3. Add the rule to [`app/src/main/assets/distraction_rules.txt`](../app/src/main/assets/distraction_rules.txt).
-4. Open a pull request with a short explanation and test notes.
+2. Add a `category` that groups the rule with similar controls.
+3. Make sure the comment clearly explains the affected interface element.
+4. Add the rule to [`app/src/main/assets/distraction_rules.txt`](../app/src/main/assets/distraction_rules.txt).
+5. Open a pull request with a short explanation and test notes.

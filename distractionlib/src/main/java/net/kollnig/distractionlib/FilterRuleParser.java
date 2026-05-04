@@ -17,7 +17,7 @@ public class FilterRuleParser {
 
     /**
      * Parses raw filter rules into structured FilterRule objects.
-     * Rules follow the format: <package-name>##viewId=<view-id>##desc=<pipe-separated-list>##color=<hex-color>##blockTouches=<true|false>##enabled=<true|false>
+     * Rules follow the format: <package-name>##viewId=<view-id>##desc=<pipe-separated-list>##category=<group-name>##color=<hex-color>##blockTouches=<true|false>##enabled=<true|false>
      * If color is not specified, defaults to white (#FFFFFF)
      * If blockTouches is not specified, defaults to true
      * If enabled is not specified, defaults to true
@@ -55,6 +55,7 @@ public class FilterRuleParser {
             String targetClassName = null;
             String targetText = null;
             String targetPath = null;
+            String category = null;
             int color = Color.WHITE;
             boolean blockTouches = true;
 
@@ -102,11 +103,14 @@ public class FilterRuleParser {
                     case "comment":
                         currentComment = value;
                         break;
+                    case "category":
+                        category = value;
+                        break;
                 }
             }
 
             rules.add(new FilterRule(packageName, targetViewId, descriptions, targetClassName,
-                    targetText, targetPath, color, currentComment, line, blockTouches));
+                    targetText, targetPath, color, currentComment, category, line, blockTouches));
         }
 
         return rules;

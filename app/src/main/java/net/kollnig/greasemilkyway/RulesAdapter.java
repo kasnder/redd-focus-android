@@ -38,6 +38,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private static final int TYPE_APP_HEADER = 1;
     private static final int TYPE_RULE = 2;
     private static final int TYPE_FOOTER = 3;
+    private static final int TYPE_RULE_SECTION = 4;
 
     private static final String PREFS_NAME = "AppCollapseStates";
     private static final String KEY_FIRST_RUN = "first_run";
@@ -45,6 +46,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private final Context context;
     private final ServiceConfig config;
     private final PackageManager packageManager;
+    private final SharedPreferences collapsePrefs;
     private final List<Object> items = new ArrayList<>();
     private List<FilterRule> currentRules = new ArrayList<>();
 
@@ -72,7 +74,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         this.context = context;
         this.config = config;
         this.packageManager = context.getPackageManager();
-        SharedPreferences collapsePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.collapsePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
         // Check if this is first run
         if (collapsePrefs.getBoolean(KEY_FIRST_RUN, true)) {
@@ -132,13 +134,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             }
 
             // Add app header
-            items.add(new AppHeaderItem(packageName, enabledCount));
+            items.add(new AppHeaderItem(packageName, enabledCount, packageRules.size()));
 
             // Show rules only when the package is enabled (not disabled)
             boolean isPackageEnabled = !config.isPackageDisabled(packageName);
             if (isPackageEnabled) {
-                for (FilterRule rule : packageRules) {
-                    items.add(new RuleItem(rule));
+                Map<String, List<FilterRule>> groupedRules = groupRules(packageRules);
+                for (Map.Entry<String, List<FilterRule>> group : groupedRules.entrySet()) {
+                    String groupTitle = group.getKey();
+                    List<FilterRule> groupRules = group.getValue();
+                    boolean expanded = isRuleGroupExpanded(packageName, groupTitle);
+                    items.add(new RuleSectionItem(packageName, groupTitle, groupRules, expanded));
+                    if (expanded) {
+                        for (FilterRule rule : groupRules) {
+                            items.add(new RuleItem(rule));
+                        }
+                    }
                 }
             }
         }
@@ -156,6 +167,8 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             return TYPE_APP_HEADER;
         if (item instanceof FooterItem)
             return TYPE_FOOTER;
+        if (item instanceof RuleSectionItem)
+            return TYPE_RULE_SECTION;
         return TYPE_RULE;
     }
 
@@ -168,6 +181,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
         if (viewType == TYPE_FOOTER) {
             return new FooterViewHolder(inflater.inflate(R.layout.item_footer, parent, false));
+        }
+        if (viewType == TYPE_RULE_SECTION) {
+            return new RuleSectionViewHolder(inflater.inflate(R.layout.item_rule_section, parent, false));
         }
         return new RuleViewHolder(inflater.inflate(R.layout.item_rule, parent, false));
     }
@@ -204,6 +220,8 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 if (appItem.ruleCount > 0) {
                     viewHolder.packageName.setText(context.getResources().getQuantityString(
                             R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount));
+                } else if (appItem.totalRuleCount > 0) {
+                    viewHolder.packageName.setText(context.getString(R.string.no_rules_active));
                 } else {
                     viewHolder.packageName.setText(context.getString(R.string.click_to_hide_elements));
                 }
@@ -315,12 +333,25 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 }
                 viewHolder.packageSwitch.toggle();
             });
+        } else if (holder instanceof RuleSectionViewHolder && item instanceof RuleSectionItem) {
+            RuleSectionViewHolder viewHolder = (RuleSectionViewHolder) holder;
+            RuleSectionItem section = (RuleSectionItem) item;
+            viewHolder.sectionTitle.setText(section.title);
+            viewHolder.sectionCount.setText(getRuleGroupSummary(section.rules));
+            viewHolder.sectionIndicator.setText(section.expanded ? "v" : ">");
+            viewHolder.itemView.setOnClickListener(v -> {
+                collapsePrefs.edit()
+                        .putBoolean(getRuleGroupExpandedKey(section.packageName, section.title),
+                                !section.expanded)
+                        .apply();
+                rebuildItemsList();
+            });
         } else if (holder instanceof RuleViewHolder && item instanceof RuleItem) {
             RuleViewHolder viewHolder = (RuleViewHolder) holder;
             RuleItem ruleItem = (RuleItem) item;
             FilterRule rule = ruleItem.rule;
 
-            viewHolder.ruleDescription.setText(rule.description);
+            viewHolder.ruleDescription.setText(getRuleDisplayName(rule));
 
             // Set subtitle text based on state
             if (rule.enabled) {
@@ -542,6 +573,60 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
     }
 
+    private Map<String, List<FilterRule>> groupRules(List<FilterRule> rules) {
+        Map<String, List<FilterRule>> groups = new java.util.LinkedHashMap<>();
+        for (FilterRule rule : rules) {
+            groups.computeIfAbsent(getRuleGroup(rule), k -> new ArrayList<>()).add(rule);
+        }
+        return groups;
+    }
+
+    private String getRuleGroup(FilterRule rule) {
+        if (rule.category != null && !rule.category.trim().isEmpty()) {
+            return rule.category.trim();
+        }
+        if (rule.isCustom) {
+            return context.getString(R.string.rule_group_custom);
+        }
+        return context.getString(R.string.rule_group_other);
+    }
+
+    private String getRuleDisplayName(FilterRule rule) {
+        if (rule.description != null && !rule.description.trim().isEmpty()) {
+            return rule.description;
+        }
+        if (rule.isCustom) {
+            return context.getString(R.string.rule_custom_fallback);
+        }
+        return context.getString(R.string.rule_builtin_fallback);
+    }
+
+    private String getRuleGroupSummary(List<FilterRule> rules) {
+        int enabledCount = 0;
+        for (FilterRule rule : rules) {
+            if (rule.enabled) {
+                enabledCount++;
+            }
+        }
+        if (enabledCount == 0) {
+            return context.getResources().getQuantityString(R.plurals.disabled_rule_count,
+                    rules.size(), rules.size());
+        }
+        if (enabledCount == rules.size()) {
+            return context.getResources().getQuantityString(R.plurals.active_rule_count,
+                    enabledCount, enabledCount);
+        }
+        return context.getString(R.string.active_rule_fraction, enabledCount, rules.size());
+    }
+
+    private boolean isRuleGroupExpanded(String packageName, String title) {
+        return collapsePrefs.getBoolean(getRuleGroupExpandedKey(packageName, title), false);
+    }
+
+    private String getRuleGroupExpandedKey(String packageName, String title) {
+        return "rule_group_expanded_" + packageName + "_" + title;
+    }
+
     @Override
     public int getItemCount() {
         return items.size();
@@ -551,10 +636,12 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private static class AppHeaderItem {
         final String packageName;
         final int ruleCount;
+        final int totalRuleCount;
 
-        AppHeaderItem(String packageName, int ruleCount) {
+        AppHeaderItem(String packageName, int ruleCount, int totalRuleCount) {
             this.packageName = packageName;
             this.ruleCount = ruleCount;
+            this.totalRuleCount = totalRuleCount;
         }
     }
 
@@ -567,6 +654,20 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     }
 
     private static class FooterItem {
+    }
+
+    private static class RuleSectionItem {
+        final String packageName;
+        final String title;
+        final List<FilterRule> rules;
+        final boolean expanded;
+
+        RuleSectionItem(String packageName, String title, List<FilterRule> rules, boolean expanded) {
+            this.packageName = packageName;
+            this.title = title;
+            this.rules = rules;
+            this.expanded = expanded;
+        }
     }
 
     static class AppHeaderViewHolder extends RecyclerView.ViewHolder {
@@ -592,6 +693,19 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             super(itemView);
             footerText = itemView.findViewById(R.id.footer_text);
             recruitmentText = itemView.findViewById(R.id.recruitment_text);
+        }
+    }
+
+    static class RuleSectionViewHolder extends RecyclerView.ViewHolder {
+        final TextView sectionTitle;
+        final TextView sectionCount;
+        final TextView sectionIndicator;
+
+        RuleSectionViewHolder(View itemView) {
+            super(itemView);
+            sectionTitle = itemView.findViewById(R.id.rule_section_title);
+            sectionCount = itemView.findViewById(R.id.rule_section_count);
+            sectionIndicator = itemView.findViewById(R.id.rule_section_indicator);
         }
     }
 

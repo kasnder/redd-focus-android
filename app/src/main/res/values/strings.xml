@@ -48,8 +48,35 @@
         <item quantity="one">%d UI element hidden</item>
         <item quantity="other">%d UI elements hidden</item>
     </plurals>
+    <plurals name="rule_count">
+        <item quantity="one">%d rule</item>
+        <item quantity="other">%d rules</item>
+    </plurals>
+    <plurals name="active_rule_count">
+        <item quantity="one">%d active</item>
+        <item quantity="other">%d active</item>
+    </plurals>
+    <plurals name="disabled_rule_count">
+        <item quantity="one">%d disabled</item>
+        <item quantity="other">%d disabled</item>
+    </plurals>
     <string name="click_to_hide_elements">Click to hide elements</string>
     <string name="not_installed">Not installed</string>
+    <string name="no_rules_active">No rules active</string>
+    <string name="active_rule_fraction">%1$d of %2$d active</string>
+    <string name="rule_group_feed">Feed</string>
+    <string name="rule_group_reels">Reels</string>
+    <string name="rule_group_stories">Stories</string>
+    <string name="rule_group_search">Search</string>
+    <string name="rule_group_notifications">Notifications</string>
+    <string name="rule_group_ai">AI features</string>
+    <string name="rule_group_channels">Channels</string>
+    <string name="rule_group_navigation">Navigation</string>
+    <string name="rule_group_main">Main screen</string>
+    <string name="rule_group_custom">Custom rules</string>
+    <string name="rule_group_other">Other</string>
+    <string name="rule_custom_fallback">Custom rule</string>
+    <string name="rule_builtin_fallback">Built-in rule</string>
 
     <!-- Element Picker -->
     <string name="picker_channel_name">Element Picker</string>
@@ -104,6 +131,8 @@
     <string name="picker_notification_shown">Picker ready! Switch to any app to start.</string>
     <string name="settings_title">Settings</string>
     <string name="friction_gate_settings_title">Type number of words to disable rule</string>
+    <string name="unlock_friction_settings">Unlock friction settings</string>
+    <string name="friction_gate_cancelled">Friction gate cancelled</string>
     <string name="custom_rules_subtitle">Manage your own custom distraction rules</string>
     <string name="pause_duration_title">Default Pause Duration</string>
     <string name="pause_duration_minutes">%d minutes</string>

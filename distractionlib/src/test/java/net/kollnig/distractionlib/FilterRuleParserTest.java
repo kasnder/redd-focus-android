@@ -163,6 +163,15 @@ public class FilterRuleParserTest {
     }
 
     @Test
+    public void parseCategory() {
+        String[] raw = {"com.example.app##viewId=test##category=Feed"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(1, rules.size());
+        assertEquals("Feed", rules.get(0).category);
+    }
+
+    @Test
     public void parsePrefixCommentAppliedToNextRule() {
         String[] raw = {
                 "// Hide the stories bar",
@@ -228,7 +237,7 @@ public class FilterRuleParserTest {
     @Test
     public void parseComplexRule() {
         String[] raw = {
-                "com.whatsapp##viewId=com.whatsapp:id/fab##color=#FF0000##blockTouches=false##comment=Hide FAB"
+                "com.whatsapp##viewId=com.whatsapp:id/fab##category=Navigation##color=#FF0000##blockTouches=false##comment=Hide FAB"
         };
         List<FilterRule> rules = parser.parseRules(raw);
 
@@ -239,6 +248,7 @@ public class FilterRuleParserTest {
         assertEquals(Color.parseColor("#FF0000"), rule.color);
         assertFalse(rule.blockTouches);
         assertEquals("Hide FAB", rule.description);
+        assertEquals("Navigation", rule.category);
     }
 
     @Test

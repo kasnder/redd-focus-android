@@ -14,6 +14,7 @@ public class FilterRule {
     public final String targetPath;
     public final int color;
     public final String description;
+    public final String category;
     public final String ruleString;
     public final boolean blockTouches;
     public boolean enabled;
@@ -24,6 +25,13 @@ public class FilterRule {
     public FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
                       String path, int color, String description, String ruleString,
                       boolean blockTouches) {
+        this(pkg, viewId, descs, className, text, path, color, description, null,
+                ruleString, blockTouches);
+    }
+
+    public FilterRule(String pkg, String viewId, Set<String> descs, String className, String text,
+                      String path, int color, String description, String category,
+                      String ruleString, boolean blockTouches) {
         this.packageName = pkg;
         this.targetViewId = viewId;
         this.contentDescriptions = descs;
@@ -32,6 +40,7 @@ public class FilterRule {
         this.targetPath = path;
         this.color = color;
         this.description = description;
+        this.category = category;
         this.ruleString = ruleString;
         this.blockTouches = blockTouches;
         this.enabled = true;
