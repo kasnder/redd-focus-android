@@ -37,6 +37,8 @@ import java.util.Set;
 @SuppressLint("AccessibilityPolicy")
 public abstract class BaseDistractionControlService extends AccessibilityService {
     private static final int MAX_OVERLAY_COUNT = 100;
+    // Widest an image may be relative to its height and still count as a thumbnail.
+    private static final int MAX_THUMBNAIL_ASPECT_RATIO = 6;
     // Absorbs transient foreign-window events (notification shade, status bar
     // updates) that briefly take focus while the target app remains below.
     private static final long CLEAR_OVERLAYS_DELAY_MS = 150;
@@ -447,10 +449,22 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             info.notificationTimeout = getNotificationTimeout();
 
             Set<String> packages = new HashSet<>();
+            boolean needsAllViews = false;
             for (FilterRule rule : rules) {
                 if (rule.enabled) {
                     packages.add(rule.packageName);
+                    needsAllViews |= rule.minThumbnailWidthDp > 0;
                 }
+            }
+
+            // Apps mark decorative views, thumbnails among them, as not important for
+            // accessibility, so they stay out of the node tree. Shape matching needs to see
+            // them, but the larger tree costs battery, so ask for it only while a rule that
+            // matches by shape is enabled.
+            if (needsAllViews) {
+                info.flags |= AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+            } else {
+                info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
             }
 
             sentinelPackagesActive = includeSentinels;
@@ -518,12 +532,15 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         // evaluated during one shared walk rather than one walk each.
         List<FilterRule> scanRules = null;
         for (FilterRule rule : rules) {
-            if (!rule.enabled || !rule.matchesPackage(packageName)) {
+            if (!rule.enabled || !rule.matchesPackage(packageName) || !matchesScreen(rule, root)) {
                 continue;
             }
-            if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
+            boolean hasViewId = rule.targetViewId != null && !rule.targetViewId.isEmpty();
+            if (hasViewId && rule.targetChildPath != null && !rule.targetChildPath.isEmpty()) {
+                applyAnchoredRule(rule, root);
+            } else if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
                 applyPathRule(rule, root);
-            } else if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+            } else if (hasViewId) {
                 applyViewIdRule(rule, root);
             } else {
                 if (scanRules == null) {
@@ -567,6 +584,106 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 match.recycle();
             }
         }
+    }
+
+    /**
+     * Matches a short path below the node carrying the rule's view ID. Anchoring keeps the
+     * fragile part of a path down to a couple of levels, so layout changes above the anchor
+     * leave the rule intact.
+     */
+    private void applyAnchoredRule(FilterRule rule, AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> anchors =
+                root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
+        if (anchors == null) return;
+
+        int matchIndex = 0;
+        for (AccessibilityNodeInfo anchor : anchors) {
+            try {
+                if (!anchor.isVisibleToUser()) continue;
+
+                List<AccessibilityNodeInfo> targets = matchPaths(anchor, rule.targetChildPath);
+                for (AccessibilityNodeInfo target : targets) {
+                    int index = matchIndex++;
+                    try {
+                        if (target.isVisibleToUser()) {
+                            processTargetView(target, rule, index);
+                        }
+                    } finally {
+                        if (target != anchor) {
+                            target.recycle();
+                        }
+                    }
+                }
+            } finally {
+                anchor.recycle();
+            }
+        }
+    }
+
+    /**
+     * Checks the rule's screen markers against the current window. Several screens of an app
+     * often share one list view ID, so a rule meant for a single screen needs a way to tell
+     * them apart; markers do that structurally, without depending on any translated label.
+     */
+    private boolean matchesScreen(FilterRule rule, AccessibilityNodeInfo root) {
+        FilterRule.ScreenCondition condition = rule.screenCondition;
+        if (condition == null) return true;
+
+        if (condition.requiredViewId != null && !isViewPresent(root, condition.requiredViewId)) {
+            return false;
+        }
+        return condition.selectedViewId == null || isMarkerSelected(root, condition);
+    }
+
+    private boolean isViewPresent(AccessibilityNodeInfo root, String viewId) {
+        List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByViewId(viewId);
+        if (matches == null) return false;
+
+        boolean present = false;
+        for (AccessibilityNodeInfo match : matches) {
+            try {
+                present |= match.isVisibleToUser();
+            } finally {
+                match.recycle();
+            }
+        }
+        return present;
+    }
+
+    /**
+     * Reports whether the marker node is selected, which is how apps expose the active tab of
+     * a navigation bar.
+     */
+    private boolean isMarkerSelected(AccessibilityNodeInfo root,
+                                     FilterRule.ScreenCondition condition) {
+        List<AccessibilityNodeInfo> anchors =
+                root.findAccessibilityNodeInfosByViewId(condition.selectedViewId);
+        if (anchors == null) return false;
+
+        boolean selected = false;
+        for (AccessibilityNodeInfo anchor : anchors) {
+            try {
+                if (!anchor.isVisibleToUser()) continue;
+
+                if (condition.selectedChildPath == null) {
+                    selected |= anchor.isSelected();
+                    continue;
+                }
+                for (AccessibilityNodeInfo target
+                        : matchPaths(anchor, condition.selectedChildPath)) {
+                    try {
+                        selected |= target.isSelected();
+                    } finally {
+                        if (target != anchor) {
+                            target.recycle();
+                        }
+                    }
+                }
+            } finally {
+                anchor.recycle();
+            }
+        }
+        return selected;
     }
 
     /**
@@ -722,8 +839,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void processTargetView(AccessibilityNodeInfo node, FilterRule rule, int matchIndex) {
+        if (!hasThumbnail(node, rule)) {
+            return;
+        }
+
         if (rule.targetViewId == null || rule.contentDescriptions == null
-                || rule.contentDescriptions.isEmpty() || rule.targetViewId.isEmpty()) {
+                || rule.contentDescriptions.isEmpty() || rule.targetViewId.isEmpty()
+                || (rule.targetChildPath != null && !rule.targetChildPath.isEmpty())) {
             Rect bounds = new Rect();
             node.getBoundsInScreen(bounds);
             if (!bounds.isEmpty()) {
@@ -748,6 +870,56 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 child.recycle();
             }
         }
+    }
+
+    /**
+     * Recognises media cards by shape rather than by label. Feed and recommendation cards are
+     * drawn without view IDs and their labels are translated, but a card is built around a
+     * large image, while title, channel, action and comment rows only carry small icons and
+     * avatars. On a phone the two differ by roughly ten times in dp, and that gap holds on
+     * larger screens, where apps switch to compact cards that keep a similar thumbnail size
+     * in a much wider row.
+     */
+    private boolean hasThumbnail(AccessibilityNodeInfo node, FilterRule rule) {
+        if (rule.minThumbnailWidthDp <= 0) {
+            return true;
+        }
+
+        float density = getResources().getDisplayMetrics().density;
+        return subtreeContainsWideImage(node, Math.round(rule.minThumbnailWidthDp * density));
+    }
+
+    private boolean subtreeContainsWideImage(AccessibilityNodeInfo node, int minWidth) {
+        if (node == null) return false;
+
+        CharSequence className = node.getClassName();
+        if (className != null && isImageClass(className.toString())) {
+            Rect bounds = new Rect();
+            node.getBoundsInScreen(bounds);
+            // Height keeps dividers and progress bars, which are also full width, out. The
+            // limit is generous because bounds of a partly scrolled card are clipped.
+            if (bounds.width() >= minWidth
+                    && bounds.height() * MAX_THUMBNAIL_ASPECT_RATIO >= bounds.width()) {
+                return true;
+            }
+        }
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) continue;
+            try {
+                if (subtreeContainsWideImage(child, minWidth)) return true;
+            } finally {
+                child.recycle();
+            }
+        }
+        return false;
+    }
+
+    private boolean isImageClass(String className) {
+        return className.endsWith("ImageView")
+                || className.endsWith("SurfaceView")
+                || className.endsWith("TextureView");
     }
 
     private boolean subtreeContainsContentDescription(AccessibilityNodeInfo node, Set<String> targets) {

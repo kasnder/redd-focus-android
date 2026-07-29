@@ -16,8 +16,23 @@ public class FilterRuleParser {
     private static final String TAG = "FilterRuleParser";
 
     /**
+     * Width in dp an image must reach for its element to count as a media card, when
+     * hasThumbnail is given as a plain "true" rather than an explicit width. Sits well above
+     * the avatars and icons of a text row, and well below a video thumbnail.
+     */
+    public static final int DEFAULT_MIN_THUMBNAIL_WIDTH_DP = 100;
+
+    /** Below this an image is an icon, not a thumbnail, so smaller widths are rejected. */
+    private static final int MIN_ACCEPTED_THUMBNAIL_WIDTH_DP = 48;
+
+    /**
      * Parses raw filter rules into structured FilterRule objects.
      * Rules follow the format: <package-name>##viewId=<view-id>##desc=<pipe-separated-list>##category=<group-name>##color=<hex-color>##blockTouches=<true|false>##enabled=<true|false>
+     * A viewId may be combined with childPath=<path> to match a path below that view instead
+     * of below the window root, and with hasThumbnail=<width-in-dp|true> to keep only matches
+     * that contain an image at least that wide.
+     * requiresViewId=<view-id> and requiresSelected=<view-id>[><path>] restrict a rule to
+     * screens carrying those structural markers.
      * If color is not specified, defaults to white (#FFFFFF)
      * If blockTouches is not specified, defaults to true
      * If enabled is not specified, defaults to true
@@ -61,6 +76,11 @@ public class FilterRuleParser {
             String targetClassName = null;
             String targetText = null;
             String targetPath = null;
+            String targetChildPath = null;
+            int minThumbnailWidthDp = 0;
+            String requiredViewId = null;
+            String selectedViewId = null;
+            String selectedChildPath = null;
             String category = null;
             int color = Color.WHITE;
             boolean blockTouches = true;
@@ -106,6 +126,31 @@ public class FilterRuleParser {
                     case "path":
                         targetPath = value;
                         break;
+                    case "childPath":
+                        targetChildPath = value;
+                        break;
+                    case "hasThumbnail":
+                        minThumbnailWidthDp = parseThumbnailWidth(value);
+                        break;
+                    case "requiresViewId":
+                        requiredViewId = value.isEmpty() ? null : value;
+                        break;
+                    case "requiresSelected": {
+                        int split = value.indexOf('>');
+                        if (split < 0) {
+                            selectedViewId = value.isEmpty() ? null : value;
+                            selectedChildPath = null;
+                        } else {
+                            selectedViewId = value.substring(0, split).trim();
+                            selectedChildPath = value.substring(split + 1).trim();
+                            if (selectedViewId.isEmpty() || selectedChildPath.isEmpty()) {
+                                Log.e(TAG, "Invalid requiresSelected value: " + value);
+                                selectedViewId = null;
+                                selectedChildPath = null;
+                            }
+                        }
+                        break;
+                    }
                     case "comment":
                         currentComment = value;
                         break;
@@ -115,11 +160,44 @@ public class FilterRuleParser {
                 }
             }
 
+            FilterRule.ScreenCondition screenCondition =
+                    requiredViewId == null && selectedViewId == null
+                            ? null
+                            : new FilterRule.ScreenCondition(requiredViewId, selectedViewId,
+                                    selectedChildPath);
+
             rules.add(new FilterRule(packageName, targetViewId, descriptions, targetClassName,
-                    targetText, targetPath, color, currentComment, category, line, blockTouches));
+                    targetText, targetPath, targetChildPath, minThumbnailWidthDp, screenCondition,
+                    color, currentComment, category, line, blockTouches));
             currentComment = null;
         }
 
         return rules;
+    }
+
+    /**
+     * Reads the hasThumbnail value as a width in dp. Only an explicit "false" turns the check
+     * off: an unreadable value falls back to the default, because dropping the check would
+     * widen the rule to every element it is paired with rather than narrow it.
+     */
+    private int parseThumbnailWidth(String value) {
+        if ("true".equalsIgnoreCase(value)) {
+            return DEFAULT_MIN_THUMBNAIL_WIDTH_DP;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return 0;
+        }
+        try {
+            int widthDp = Integer.parseInt(value.endsWith("dp")
+                    ? value.substring(0, value.length() - 2).trim()
+                    : value);
+            if (widthDp >= MIN_ACCEPTED_THUMBNAIL_WIDTH_DP) {
+                return widthDp;
+            }
+            Log.e(TAG, "hasThumbnail width too small, using default: " + value);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid hasThumbnail value, using default: " + value);
+        }
+        return DEFAULT_MIN_THUMBNAIL_WIDTH_DP;
     }
 }
