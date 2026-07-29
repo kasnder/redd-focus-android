@@ -38,6 +38,11 @@ android {
     dependenciesInfo {
         includeInApk = false
     }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -49,6 +54,6 @@ dependencies {
     implementation project(':distractionlib')
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation 'org.mockito:mockito-core:5.14.2'
 }
