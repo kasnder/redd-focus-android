@@ -26,8 +26,12 @@ public class FilterRuleParser {
         List<FilterRule> rules = new ArrayList<>();
         String currentComment = null;
 
+        boolean debug = Log.isLoggable(TAG, Log.DEBUG);
+
         for (String line : raw) {
-            Log.d(TAG, "Parsing line: " + line);
+            if (debug) {
+                Log.d(TAG, "Parsing line: " + line);
+            }
 
             if (TextUtils.isEmpty(line)) {
                 continue;
@@ -35,7 +39,9 @@ public class FilterRuleParser {
 
             if (line.trim().startsWith("//")) {
                 currentComment = line.trim().substring(2).trim();
-                Log.d(TAG, "Found comment: " + currentComment);
+                if (debug) {
+                    Log.d(TAG, "Found comment: " + currentComment);
+                }
                 continue;
             }
 

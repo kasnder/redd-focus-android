@@ -170,7 +170,6 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     private void saveAndApplyPickerRule(String ruleString) {
-        ServiceConfig config = new ServiceConfig(this);
         config.addCustomRule(ruleString);
 
         FilterRuleParser parser = new FilterRuleParser();
@@ -186,7 +185,6 @@ public class DistractionControlService extends BaseDistractionControlService {
 
     private void undoPickerRule(String ruleString) {
         Log.i(TAG, "Undoing picker rule: " + ruleString);
-        ServiceConfig config = new ServiceConfig(this);
         config.removeCustomRule(ruleString);
 
         FilterRuleParser parser = new FilterRuleParser();

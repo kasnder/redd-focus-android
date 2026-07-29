@@ -2,13 +2,13 @@ package net.kollnig.greasemilkyway;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import net.kollnig.distractionlib.FilterRule;
 import net.kollnig.distractionlib.FilterRuleParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,19 +85,23 @@ public class ServiceConfig {
     public List<FilterRule> getRules() {
         List<FilterRule> rules = new ArrayList<>();
         
-        // Add default rules from file
-        try {
-            InputStream is = context.getAssets().open(DEFAULT_RULES_FILE);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        // Add default rules from file. Collected first and parsed in one call:
+        // parsing line by line allocated a single-element array and re-entered
+        // the parser for every rule in the file.
+        List<String> defaultRuleLines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(context.getAssets().open(DEFAULT_RULES_FILE)))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!line.trim().isEmpty()) {
-                    rules.addAll(ruleParser.parseRules(new String[]{line}));
+                    defaultRuleLines.add(line);
                 }
             }
-            reader.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to read " + DEFAULT_RULES_FILE, e);
+        }
+        if (!defaultRuleLines.isEmpty()) {
+            rules.addAll(ruleParser.parseRules(defaultRuleLines.toArray(new String[0])));
         }
         
         // Add custom rules

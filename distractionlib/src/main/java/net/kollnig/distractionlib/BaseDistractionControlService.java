@@ -724,7 +724,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             return;
         }
 
-        for (int i = 0; i < node.getChildCount(); i++) {
+        int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
@@ -747,7 +748,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         CharSequence desc = node.getContentDescription();
         if (desc != null && targets.contains(desc.toString())) return true;
 
-        for (int i = 0; i < node.getChildCount(); i++) {
+        int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
