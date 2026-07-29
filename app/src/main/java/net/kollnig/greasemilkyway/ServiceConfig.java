@@ -93,10 +93,18 @@ public class ServiceConfig {
 
     /**
      * Moves saved state from the legacy ruleString.hashCode() keys to the
-     * identity-derived ones. Runs once; without it, upgrading would silently
-     * reset every rule the user had enabled or paused.
+     * identity-derived ones. Runs once per rule set it is given; without it,
+     * upgrading would silently reset every rule the user had enabled or
+     * paused.
+     *
+     * <p>{@code completeRuleSet} must be false whenever {@code knownRules}
+     * might be missing rules -- e.g. the bundled rules file failed to load.
+     * In that case legacy keys for the rules present (typically just custom
+     * ones) are still migrated, but the prefs version is left unbumped so a
+     * later call with the full rule set can finish migrating the rest,
+     * rather than the partial run being mistaken for a complete one.
      */
-    private void migrateRuleKeys(List<FilterRule> knownRules) {
+    private void migrateRuleKeys(List<FilterRule> knownRules, boolean completeRuleSet) {
         if (prefs.getInt(KEY_PREFS_VERSION, 0) >= PREFS_VERSION) {
             return;
         }
@@ -124,7 +132,9 @@ public class ServiceConfig {
                 editor.remove(legacyPause);
             }
         }
-        editor.putInt(KEY_PREFS_VERSION, PREFS_VERSION);
+        if (completeRuleSet) {
+            editor.putInt(KEY_PREFS_VERSION, PREFS_VERSION);
+        }
         editor.apply();
     }
 
@@ -155,6 +165,7 @@ public class ServiceConfig {
         // parsing line by line allocated a single-element array and re-entered
         // the parser for every rule in the file.
         List<String> defaultRuleLines = new ArrayList<>();
+        boolean defaultRulesReadOk = false;
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(context.getAssets().open(DEFAULT_RULES_FILE)))) {
             String line;
@@ -163,13 +174,14 @@ public class ServiceConfig {
                     defaultRuleLines.add(line);
                 }
             }
+            defaultRulesReadOk = true;
         } catch (IOException e) {
             Log.e(TAG, "Failed to read " + DEFAULT_RULES_FILE, e);
         }
         if (!defaultRuleLines.isEmpty()) {
             rules.addAll(ruleParser.parseRules(defaultRuleLines.toArray(new String[0])));
         }
-        
+
         // Add custom rules
         String[] customRules = getCustomRules();
         if (customRules != null) {
@@ -181,8 +193,12 @@ public class ServiceConfig {
         }
 
         // Rules are all known at this point, so this is where legacy keys can
-        // be mapped onto their identity-derived replacements.
-        migrateRuleKeys(rules);
+        // be mapped onto their identity-derived replacements. If the bundled
+        // rules file failed to load, the rule set here is incomplete, so the
+        // migration must not be recorded as done -- otherwise the bundled
+        // rules' legacy state would be orphaned permanently instead of picked
+        // up on a later, successful load.
+        migrateRuleKeys(rules, defaultRulesReadOk);
 
         // Apply saved enabled states
         long currentTime = System.currentTimeMillis();

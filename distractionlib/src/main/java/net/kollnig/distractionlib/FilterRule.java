@@ -60,11 +60,14 @@ public class FilterRule {
      * A stable identifier for <em>what this rule matches</em>, for use as a
      * persistence key.
      *
-     * <p>Deliberately built from the matching fields only. The raw rule string
-     * also carries presentation metadata -- comment, category, colour,
-     * blockTouches -- so keying saved state on it means that fixing a typo in a
-     * bundled rule's comment silently orphans every existing user's
-     * enable/pause state for that rule.
+     * <p>Deliberately built from the matching fields, plus blockTouches, which
+     * is behavioural rather than presentational: two rules that target the
+     * same element but handle touches differently are genuinely different
+     * rules and must not share a key. The raw rule string also carries purely
+     * presentational metadata -- comment, category, colour -- so keying saved
+     * state on it means that fixing a typo in a bundled rule's comment
+     * silently orphans every existing user's enable/pause state for that
+     * rule.
      *
      * <p>Content descriptions are sorted so that the result does not depend on
      * the iteration order of the underlying set.
@@ -81,7 +84,8 @@ public class FilterRule {
                 .append(String.join("|", descs)).append('\n')
                 .append(targetClassName == null ? "" : targetClassName).append('\n')
                 .append(targetText == null ? "" : targetText).append('\n')
-                .append(targetPath == null ? "" : targetPath)
+                .append(targetPath == null ? "" : targetPath).append('\n')
+                .append(blockTouches)
                 .toString();
     }
 

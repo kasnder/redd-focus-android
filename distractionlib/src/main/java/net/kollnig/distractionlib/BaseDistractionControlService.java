@@ -106,7 +106,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             try {
                 CharSequence rootPkg = root.getPackageName();
                 if (rootPkg == null || !hasMatchingRule(rootPkg) || !shouldProcessRules()) {
-                    forceClearAllOverlays();
+                    leaveTargetApp();
                     return;
                 }
 
@@ -458,8 +458,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             // empty target set must never reach it. With no rules enabled — the
             // default state, since rules are opt-in — there is nothing to block,
             // so silence the service instead of subscribing to the whole system.
-            // The same applies while the screen is off.
-            boolean suppressEvents = packages.isEmpty() || !screenOn;
+            // The same applies while the screen is off. Queried directly rather
+            // than trusting the cached screenOn field: a missed or reordered
+            // ACTION_SCREEN_ON broadcast would otherwise leave eventTypes stuck
+            // at 0 with no accessibility events left to reveal the problem.
+            boolean suppressEvents = packages.isEmpty() || !isScreenInteractive();
             info.eventTypes = suppressEvents ? 0 : ACTIVE_EVENT_TYPES;
             // While overlays are attached, temporarily observe all packages so
             // any foreground transition can clear them. The stricter target-app
@@ -474,6 +477,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         } catch (Exception e) {
             Log.e(getLogTag(), "Error configuring accessibility service", e);
         }
+    }
+
+    private boolean isScreenInteractive() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        return pm == null || pm.isInteractive();
     }
 
     private String getLauncherPackage() {
