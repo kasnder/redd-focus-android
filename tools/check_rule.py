@@ -3,7 +3,7 @@
 
     adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml
     python3 tools/check_rule.py ui.xml --density 3.0 \\
-        'com.example.app##viewId=com.example.app:id/list##childPath=android.view.ViewGroup[*]##hasThumbnail=true'
+        --rule 'com.example.app##viewId=com.example.app:id/list##childPath=android.view.ViewGroup[*]##hasThumbnail=true'
 
 It reports which screen markers held, which elements the rule selected, and which of those
 the thumbnail check kept. Run it over dumps of several screens of the same app to check
@@ -24,15 +24,36 @@ Mirrors BaseDistractionControlService and FilterRuleParser. If a rule behaves di
 on the device, trust the device.
 """
 import argparse
+import pathlib
 import re
 import sys
 import xml.etree.ElementTree as ET
 
-# Kept in step with FilterRuleParser.DEFAULT_MIN_THUMBNAIL_WIDTH_DP and
-# BaseDistractionControlService.MAX_THUMBNAIL_ASPECT_RATIO.
-DEFAULT_MIN_THUMBNAIL_WIDTH_DP = 100
-MIN_ACCEPTED_THUMBNAIL_WIDTH_DP = 48
-MAX_THUMBNAIL_ASPECT_RATIO = 6
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_DISTRACTIONLIB_JAVA = _REPO_ROOT / 'distractionlib' / 'src' / 'main' / 'java' / 'net' / 'kollnig' / 'distractionlib'
+
+
+def _read_java_int_constant(java_file, constant_name, default):
+    """Reads a `private/public static final int NAME = value;` out of a Java source file.
+
+    Read straight from source rather than duplicating the number, so the two can't drift
+    apart silently. Falls back to `default` if the file has moved or the constant was renamed,
+    which only makes this tool stale, not wrong about what the app actually does.
+    """
+    try:
+        text = java_file.read_text()
+    except OSError:
+        return default
+    match = re.search(r'\b%s\s*=\s*(\d+)\s*;' % re.escape(constant_name), text)
+    return int(match.group(1)) if match else default
+
+
+DEFAULT_MIN_THUMBNAIL_WIDTH_DP = _read_java_int_constant(
+    _DISTRACTIONLIB_JAVA / 'FilterRuleParser.java', 'DEFAULT_MIN_THUMBNAIL_WIDTH_DP', 100)
+MIN_ACCEPTED_THUMBNAIL_WIDTH_DP = _read_java_int_constant(
+    _DISTRACTIONLIB_JAVA / 'FilterRuleParser.java', 'MIN_ACCEPTED_THUMBNAIL_WIDTH_DP', 48)
+MAX_THUMBNAIL_ASPECT_RATIO = _read_java_int_constant(
+    _DISTRACTIONLIB_JAVA / 'BaseDistractionControlService.java', 'MAX_THUMBNAIL_ASPECT_RATIO', 6)
 
 IMAGE_SUFFIXES = ('ImageView', 'SurfaceView', 'TextureView')
 
@@ -43,7 +64,7 @@ def parse_rule(line):
     if len(parts) < 2:
         raise ValueError('a rule needs a package and at least one key: ' + line)
 
-    rule = {'package': parts[0].strip(), 'minThumbnailWidthDp': 0}
+    rule = {'package': parts[0].strip(), 'minThumbnailWidthDp': 0, 'malformedScreenMarker': False}
     for part in parts[1:]:
         if '=' not in part:
             continue
@@ -55,15 +76,20 @@ def parse_rule(line):
         elif key == 'requiresSelected':
             anchor, sep, path = value.partition('>')
             if sep:
-                rule['selectedViewId'] = anchor.strip() or None
-                rule['selectedChildPath'] = path.strip() or None
-                if not rule['selectedViewId'] or not rule['selectedChildPath']:
-                    rule['selectedViewId'] = rule['selectedChildPath'] = None
+                anchor, path = anchor.strip(), path.strip()
+                if anchor and path:
+                    rule['selectedViewId'], rule['selectedChildPath'] = anchor, path
+                else:
+                    rule['malformedScreenMarker'] = True
+            elif value:
+                rule['selectedViewId'], rule['selectedChildPath'] = value, None
             else:
-                rule['selectedViewId'] = value or None
-                rule['selectedChildPath'] = None
+                rule['malformedScreenMarker'] = True
         elif key == 'requiresViewId':
-            rule['requiredViewId'] = value or None
+            if value:
+                rule['requiredViewId'] = value
+            else:
+                rule['malformedScreenMarker'] = True
         else:
             rule[key] = value
     return rule
@@ -112,7 +138,13 @@ def match_paths(root, path):
             class_name = segment[:segment.index('[')]
             index_text = segment[segment.index('[') + 1:segment.index(']')]
             wildcard = index_text == '*'
-            index = 0 if wildcard else int(index_text)
+            if wildcard:
+                index = 0
+            else:
+                try:
+                    index = int(index_text)
+                except ValueError:
+                    return []
         else:
             class_name, wildcard, index = segment, False, 0
 
@@ -201,6 +233,11 @@ def check(dump_path, rule, density, window_index):
     root = windows[window_index]
 
     print('%s:' % dump_path)
+    if rule['malformedScreenMarker']:
+        # Mirrors FilterRuleParser: a screen marker that cannot be read is a broken guardrail,
+        # so the app drops the whole rule at load time rather than applying it without it.
+        print('  DROPPED: malformed requiresViewId/requiresSelected value, rule never loads')
+        return 0
     if not matches_screen(rule, root, print):
         print('  NOT APPLIED: screen markers did not hold')
         return 0

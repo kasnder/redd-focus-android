@@ -84,6 +84,7 @@ public class FilterRuleParser {
             String category = null;
             int color = Color.WHITE;
             boolean blockTouches = true;
+            boolean malformedScreenMarker = false;
 
             for (int i = 1; i < parts.length; i++) {
                 String part = parts[i];
@@ -133,20 +134,32 @@ public class FilterRuleParser {
                         minThumbnailWidthDp = parseThumbnailWidth(value);
                         break;
                     case "requiresViewId":
-                        requiredViewId = value.isEmpty() ? null : value;
+                        if (value.isEmpty()) {
+                            Log.e(TAG, "Invalid requiresViewId value: " + value);
+                            malformedScreenMarker = true;
+                        } else {
+                            requiredViewId = value;
+                        }
                         break;
                     case "requiresSelected": {
                         int split = value.indexOf('>');
                         if (split < 0) {
-                            selectedViewId = value.isEmpty() ? null : value;
-                            selectedChildPath = null;
-                        } else {
-                            selectedViewId = value.substring(0, split).trim();
-                            selectedChildPath = value.substring(split + 1).trim();
-                            if (selectedViewId.isEmpty() || selectedChildPath.isEmpty()) {
+                            if (value.isEmpty()) {
                                 Log.e(TAG, "Invalid requiresSelected value: " + value);
-                                selectedViewId = null;
+                                malformedScreenMarker = true;
+                            } else {
+                                selectedViewId = value;
                                 selectedChildPath = null;
+                            }
+                        } else {
+                            String anchor = value.substring(0, split).trim();
+                            String childPath = value.substring(split + 1).trim();
+                            if (anchor.isEmpty() || childPath.isEmpty()) {
+                                Log.e(TAG, "Invalid requiresSelected value: " + value);
+                                malformedScreenMarker = true;
+                            } else {
+                                selectedViewId = anchor;
+                                selectedChildPath = childPath;
                             }
                         }
                         break;
@@ -158,6 +171,14 @@ public class FilterRuleParser {
                         category = value;
                         break;
                 }
+            }
+
+            if (malformedScreenMarker) {
+                // A screen marker exists to keep a rule off screens it was not written for.
+                // A marker that cannot be read is a broken guardrail, not an absent one, so the
+                // rule is dropped rather than applied without the restriction it was given.
+                Log.e(TAG, "Dropping rule with malformed screen marker: " + line);
+                continue;
             }
 
             FilterRule.ScreenCondition screenCondition =

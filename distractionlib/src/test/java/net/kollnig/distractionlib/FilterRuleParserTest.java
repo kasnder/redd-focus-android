@@ -219,11 +219,29 @@ public class FilterRuleParserTest {
     }
 
     @Test
-    public void parseSelectedMarkerWithEmptyPathIsIgnored() {
+    public void parseSelectedMarkerWithEmptyPathDropsRule() {
+        // A screen marker that cannot be read is a broken guardrail, not an absent one: the
+        // rule is dropped rather than applied without the restriction it was given.
         String[] raw = {"com.example.app##viewId=test##requiresSelected=com.example.app:id/nav>"};
         List<FilterRule> rules = parser.parseRules(raw);
 
-        assertNull(rules.get(0).screenCondition);
+        assertTrue(rules.isEmpty());
+    }
+
+    @Test
+    public void parseRequiresViewIdWithEmptyValueDropsRule() {
+        String[] raw = {"com.example.app##viewId=test##requiresViewId="};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertTrue(rules.isEmpty());
+    }
+
+    @Test
+    public void parseRequiresSelectedWithEmptyValueDropsRule() {
+        String[] raw = {"com.example.app##viewId=test##requiresSelected="};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertTrue(rules.isEmpty());
     }
 
     @Test
