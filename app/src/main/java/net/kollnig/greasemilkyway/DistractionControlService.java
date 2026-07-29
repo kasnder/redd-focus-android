@@ -23,7 +23,6 @@ public class DistractionControlService extends BaseDistractionControlService {
     private static DistractionControlService instance;
 
     private ServiceConfig config;
-    private LayoutDumper layoutDumper;
     private ElementPickerNotification pickerNotification;
     private PauseNotification pauseNotification;
     private ElementPickerOverlay pickerOverlay;
@@ -69,9 +68,6 @@ public class DistractionControlService extends BaseDistractionControlService {
         instance = this;
         config = new ServiceConfig(this);
 
-        layoutDumper = new LayoutDumper();
-        layoutDumper.start();
-
         pickerNotification = new ElementPickerNotification(this);
         pauseNotification = new PauseNotification(this);
         pickerOverlay = new ElementPickerOverlay(this, getOverlayWindowManager(),
@@ -115,9 +111,6 @@ public class DistractionControlService extends BaseDistractionControlService {
     protected void onServiceTeardown() {
         instance = null;
 
-        if (layoutDumper != null) {
-            layoutDumper.stop();
-        }
         if (pickerOverlay != null) {
             pickerOverlay.hide();
         }
