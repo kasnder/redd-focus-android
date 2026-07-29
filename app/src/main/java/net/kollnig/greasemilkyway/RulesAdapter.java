@@ -95,8 +95,9 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         Map<Integer, FilterRule> existingRules = new HashMap<>();
         for (Object item : items) {
             if (item instanceof RuleItem) {
-                FilterRule rule = ((RuleItem) item).rule;
-                existingRules.put(rule.hashCode(), rule);
+                for (FilterRule rule : ((RuleItem) item).parts) {
+                    existingRules.put(rule.hashCode(), rule);
+                }
             }
         }
 
@@ -127,27 +128,31 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 return d1.compareToIgnoreCase(d2);
             });
 
+            // Merge before counting, so the header's "hides N elements" agrees
+            // with the number of switches shown underneath it.
+            List<List<FilterRule>> packageRows = mergeRules(packageRules);
+
             // Count only enabled rules
             int enabledCount = 0;
-            for (FilterRule rule : packageRules) {
-                if (rule.enabled) enabledCount++;
+            for (List<FilterRule> row : packageRows) {
+                if (isRowEnabled(row)) enabledCount++;
             }
 
             // Add app header
-            items.add(new AppHeaderItem(packageName, enabledCount, packageRules.size()));
+            items.add(new AppHeaderItem(packageName, enabledCount, packageRows.size()));
 
             // Show rules only when the package is enabled (not disabled)
             boolean isPackageEnabled = !config.isPackageDisabled(packageName);
             if (isPackageEnabled) {
-                Map<String, List<FilterRule>> groupedRules = groupRules(packageRules);
-                for (Map.Entry<String, List<FilterRule>> group : groupedRules.entrySet()) {
+                Map<String, List<List<FilterRule>>> groupedRows = groupRows(packageRows);
+                for (Map.Entry<String, List<List<FilterRule>>> group : groupedRows.entrySet()) {
                     String groupTitle = group.getKey();
-                    List<FilterRule> groupRules = group.getValue();
+                    List<List<FilterRule>> groupRows = group.getValue();
                     boolean expanded = isRuleGroupExpanded(packageName, groupTitle);
-                    items.add(new RuleSectionItem(packageName, groupTitle, groupRules, expanded));
+                    items.add(new RuleSectionItem(packageName, groupTitle, groupRows, expanded));
                     if (expanded) {
-                        for (FilterRule rule : groupRules) {
-                            items.add(new RuleItem(rule));
+                        for (List<FilterRule> row : groupRows) {
+                            items.add(new RuleItem(row));
                         }
                     }
                 }
@@ -337,7 +342,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             RuleSectionViewHolder viewHolder = (RuleSectionViewHolder) holder;
             RuleSectionItem section = (RuleSectionItem) item;
             viewHolder.sectionTitle.setText(section.title);
-            viewHolder.sectionCount.setText(getRuleGroupSummary(section.rules));
+            viewHolder.sectionCount.setText(getRuleGroupSummary(section.rows));
             viewHolder.sectionIndicator.setText(section.expanded ? "v" : ">");
             viewHolder.itemView.setOnClickListener(v -> {
                 collapsePrefs.edit()
@@ -349,23 +354,32 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         } else if (holder instanceof RuleViewHolder && item instanceof RuleItem) {
             RuleViewHolder viewHolder = (RuleViewHolder) holder;
             RuleItem ruleItem = (RuleItem) item;
-            FilterRule rule = ruleItem.rule;
+            List<FilterRule> parts = ruleItem.parts;
+            FilterRule rule = ruleItem.primary();
+            // A row counts as on only when every part of it is: a partially
+            // applied row would leave whatever it hides visible anyway.
+            boolean rowEnabled = isRowEnabled(parts);
 
             viewHolder.ruleDescription.setText(getRuleDisplayName(rule));
 
+            long pausedUntil = 0;
+            for (FilterRule part : parts) {
+                if (part.isPaused && part.pausedUntil > pausedUntil) {
+                    pausedUntil = part.pausedUntil;
+                }
+            }
+
             // Set subtitle text based on state
-            if (rule.enabled) {
+            if (rowEnabled) {
                 viewHolder.ruleDetails.setVisibility(View.GONE);
-            } else if (rule.isPaused && rule.pausedUntil > System.currentTimeMillis()) {
+            } else if (pausedUntil > System.currentTimeMillis()) {
                 SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
-                String timeStr = sdf.format(new Date(rule.pausedUntil));
+                String timeStr = sdf.format(new Date(pausedUntil));
                 viewHolder.ruleDetails.setText(context.getString(R.string.paused_until, timeStr));
                 viewHolder.ruleDetails.setVisibility(View.VISIBLE);
-            } else if (!rule.enabled) {
+            } else {
                 viewHolder.ruleDetails.setText(R.string.rule_disabled);
                 viewHolder.ruleDetails.setVisibility(View.VISIBLE);
-            } else {
-                viewHolder.ruleDetails.setVisibility(View.GONE);
             }
 
             // Check if the package is disabled
@@ -374,7 +388,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // Remove any existing listener to prevent duplicate callbacks
             viewHolder.ruleSwitch.setOnCheckedChangeListener(null);
             // Set the current state
-            viewHolder.ruleSwitch.setChecked(rule.enabled);
+            viewHolder.ruleSwitch.setChecked(rowEnabled);
             // Disable the switch if the package is disabled
             viewHolder.ruleSwitch.setEnabled(!isPackageDisabled);
             // Add the listener back
@@ -384,24 +398,29 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     return;
                 Object currentItem = items.get(adapterPosition);
                 if (currentItem instanceof RuleItem) {
-                    RuleItem currentRuleItem = (RuleItem) currentItem;
-                    FilterRule currentRule = currentRuleItem.rule;
-                    if (currentRule.enabled != isChecked) { // Only update if the state actually changed
+                    List<FilterRule> currentParts = ((RuleItem) currentItem).parts;
+                    if (isRowEnabled(currentParts) != isChecked) { // Only update if the state actually changed
                         if (!isChecked) {
                             // Intercept disabling
                             viewHolder.ruleSwitch.setOnCheckedChangeListener(null);
                             viewHolder.ruleSwitch.setChecked(true); // Revert visually
-                            
+
                             if (context instanceof MainActivity) {
-                                ((MainActivity) context).runWithFrictionGate("Disable Rule", () -> showPauseDialog(currentRule.packageName, currentRule));
+                                ((MainActivity) context).runWithFrictionGate("Disable Rule",
+                                        () -> showPauseDialog(currentParts.get(0).packageName, currentParts));
                             }
                             return;
                         }
 
-                        currentRule.enabled = true;
-                        currentRule.isPaused = false;
-                        config.setRuleEnabled(currentRule, true);
-                        config.setRulePausedUntil(currentRule, 0);
+                        // Every part of the row moves together, so a row can
+                        // never end up half applied.
+                        for (FilterRule part : currentParts) {
+                            part.enabled = true;
+                            part.isPaused = false;
+                            part.pausedUntil = 0;
+                            config.setRuleEnabled(part, true);
+                            config.setRulePausedUntil(part, 0);
+                        }
 
                         // Rebuild to update the package switch UI, showing rules, and updated counts
                         rebuildItemsList();
@@ -414,16 +433,27 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 
             // Set up long click to delete custom rules
             viewHolder.itemView.setOnLongClickListener(v -> {
-                if (rule.isCustom) {
+                // A merged row is only deletable if it is custom throughout;
+                // deleting half of it would leave an orphaned built-in part.
+                boolean allCustom = true;
+                for (FilterRule part : parts) {
+                    if (!part.isCustom) {
+                        allCustom = false;
+                        break;
+                    }
+                }
+                if (allCustom) {
                     if (context instanceof MainActivity) {
                         ((MainActivity) context).runWithFrictionGate("Delete Rule", () -> new AlertDialog.Builder(context)
                                 .setTitle(R.string.delete_rule_title)
                                 .setMessage(R.string.delete_rule_message)
                                 .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
-                                    config.removeCustomRule(rule.ruleString);
+                                    for (FilterRule part : parts) {
+                                        config.removeCustomRule(part.ruleString);
 
-                                    // Clean up the current rules list
-                                    currentRules.remove(rule);
+                                        // Clean up the current rules list
+                                        currentRules.remove(part);
+                                    }
 
                                     // Check if we need to disable the package if it was the last rule
                                     boolean anyRulesStillEnabled = false;
@@ -510,7 +540,10 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
     }
 
-    private void showPauseDialog(String packageName, FilterRule rule) {
+    /**
+     * @param rules the parts of a single row, or null to act on the whole package
+     */
+    private void showPauseDialog(String packageName, List<FilterRule> rules) {
         int durationMins = config.getPauseDurationMins();
         String message = "Do you want to pause for " + durationMins + " minutes or disable permanently?";
         
@@ -518,13 +551,15 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 .setTitle("Disable Rule")
                 .setMessage(message)
                 .setPositiveButton("Pause (" + durationMins + "m)", (dialog, which) -> {
-                    if (rule != null) {
+                    if (rules != null) {
                         long until = System.currentTimeMillis() + (durationMins * 60 * 1000L);
-                        config.setRuleEnabled(rule, false);
-                        config.setRulePausedUntil(rule, until);
-                        rule.enabled = false;
-                        rule.isPaused = true;
-                        rule.pausedUntil = until;
+                        for (FilterRule rule : rules) {
+                            config.setRuleEnabled(rule, false);
+                            config.setRulePausedUntil(rule, until);
+                            rule.enabled = false;
+                            rule.isPaused = true;
+                            rule.pausedUntil = until;
+                        }
                     } else {
                         long until = PauseManager.applyPackagePause(context, packageName);
                         // Update in-memory state for UI only; individual rule prefs are
@@ -538,17 +573,19 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                         }
                     }
                     rebuildItemsList();
-                    if (rule != null) {
+                    if (rules != null) {
                         notifyService();
                     }
                 })
                 .setNeutralButton("Disable Permanently", (dialog, which) -> {
-                    if (rule != null) {
-                        config.setRuleEnabled(rule, false);
-                        config.setRulePausedUntil(rule, 0);
-                        rule.enabled = false;
-                        rule.isPaused = false;
-                        rule.pausedUntil = 0;
+                    if (rules != null) {
+                        for (FilterRule rule : rules) {
+                            config.setRuleEnabled(rule, false);
+                            config.setRulePausedUntil(rule, 0);
+                            rule.enabled = false;
+                            rule.isPaused = false;
+                            rule.pausedUntil = 0;
+                        }
                     } else {
                         config.setPackageDisabled(packageName, true);
                         config.setPackagePausedUntil(packageName, 0);
@@ -577,12 +614,58 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
     }
 
-    private Map<String, List<FilterRule>> groupRules(List<FilterRule> rules) {
-        Map<String, List<FilterRule>> groups = new java.util.LinkedHashMap<>();
+    /**
+     * Collapses rules that share a comment into a single row.
+     *
+     * <p>Some things a user thinks of as one switch need more than one rule to
+     * hide -- Instagram's feed, for instance, is two sibling containers with
+     * different classes. Giving those rules the same comment is what marks
+     * them as parts of one whole; the row then acts on all of its parts at
+     * once, so a half-hidden feed is not a state the UI can produce.
+     *
+     * <p>Merging deliberately ignores category, so parts filed under different
+     * categories still merge rather than silently appearing as two half-rows.
+     * Rules without a comment never merge: they fall back to a shared
+     * placeholder name, which would otherwise collapse every unlabelled custom
+     * rule into one row.
+     */
+    static List<List<FilterRule>> mergeRules(List<FilterRule> rules) {
+        List<List<FilterRule>> rows = new ArrayList<>();
+        Map<String, List<FilterRule>> byComment = new java.util.LinkedHashMap<>();
         for (FilterRule rule : rules) {
-            groups.computeIfAbsent(getRuleGroup(rule), k -> new ArrayList<>()).add(rule);
+            String comment = rule.description == null ? "" : rule.description.trim();
+            if (comment.isEmpty()) {
+                List<FilterRule> row = new ArrayList<>();
+                row.add(rule);
+                rows.add(row);
+                continue;
+            }
+            List<FilterRule> row = byComment.get(comment);
+            if (row == null) {
+                row = new ArrayList<>();
+                byComment.put(comment, row);
+                rows.add(row);
+            }
+            row.add(rule);
+        }
+        return rows;
+    }
+
+    private Map<String, List<List<FilterRule>>> groupRows(List<List<FilterRule>> rows) {
+        Map<String, List<List<FilterRule>>> groups = new java.util.LinkedHashMap<>();
+        for (List<FilterRule> row : rows) {
+            groups.computeIfAbsent(getRuleGroup(row.get(0)), k -> new ArrayList<>()).add(row);
         }
         return groups;
+    }
+
+    static boolean isRowEnabled(List<FilterRule> row) {
+        for (FilterRule rule : row) {
+            if (!rule.enabled) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String getRuleGroup(FilterRule rule) {
@@ -605,22 +688,23 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         return context.getString(R.string.rule_builtin_fallback);
     }
 
-    private String getRuleGroupSummary(List<FilterRule> rules) {
+    /** Counts merged rows rather than rules, to match what the section shows. */
+    private String getRuleGroupSummary(List<List<FilterRule>> rows) {
         int enabledCount = 0;
-        for (FilterRule rule : rules) {
-            if (rule.enabled) {
+        for (List<FilterRule> row : rows) {
+            if (isRowEnabled(row)) {
                 enabledCount++;
             }
         }
         if (enabledCount == 0) {
             return context.getResources().getQuantityString(R.plurals.disabled_rule_count,
-                    rules.size(), rules.size());
+                    rows.size(), rows.size());
         }
-        if (enabledCount == rules.size()) {
+        if (enabledCount == rows.size()) {
             return context.getResources().getQuantityString(R.plurals.active_rule_count,
                     enabledCount, enabledCount);
         }
-        return context.getString(R.string.active_rule_fraction, enabledCount, rules.size());
+        return context.getString(R.string.active_rule_fraction, enabledCount, rows.size());
     }
 
     private boolean isRuleGroupExpanded(String packageName, String title) {
@@ -649,11 +733,19 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         }
     }
 
+    /**
+     * One row of the rules list. Usually a single rule, but rules sharing a
+     * comment are presented -- and acted on -- as one; see {@link #mergeRules}.
+     */
     private static class RuleItem {
-        final FilterRule rule;
+        final List<FilterRule> parts;
 
-        RuleItem(FilterRule rule) {
-            this.rule = rule;
+        RuleItem(List<FilterRule> parts) {
+            this.parts = parts;
+        }
+
+        FilterRule primary() {
+            return parts.get(0);
         }
     }
 
@@ -663,13 +755,14 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     private static class RuleSectionItem {
         final String packageName;
         final String title;
-        final List<FilterRule> rules;
+        final List<List<FilterRule>> rows;
         final boolean expanded;
 
-        RuleSectionItem(String packageName, String title, List<FilterRule> rules, boolean expanded) {
+        RuleSectionItem(String packageName, String title, List<List<FilterRule>> rows,
+                        boolean expanded) {
             this.packageName = packageName;
             this.title = title;
-            this.rules = rules;
+            this.rows = rows;
             this.expanded = expanded;
         }
     }

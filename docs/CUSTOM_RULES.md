@@ -21,7 +21,9 @@ Common keys:
 - `desc`: match a content description
 - `path`: match a view hierarchy path
 - `category`: group related rules in the rule list
-- `comment`: add a human-readable note
+- `comment`: the name shown in the rule list. Rules for the same app that share
+  a comment appear as **one switch**, turned on and off together — useful when
+  hiding one thing takes more than one rule
 - `color`: optional fallback color
 - `blockTouches`: whether touches should pass through
 
@@ -31,6 +33,13 @@ Common keys:
 com.example.app##category=Feed##viewId=com.example.app:id/distracting_element##comment=Hide distracting panel
 com.example.app##category=Recommendations##desc=Recommended content##comment=Hide recommendation row
 com.example.app##category=Feed##path=android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed cards
+```
+
+Two rules presented as a single "Hide feed" switch, because they share a comment:
+
+```text
+com.example.app##category=Feed##path=androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed
+com.example.app##category=Feed##path=androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed
 ```
 
 ## Built-In Rules

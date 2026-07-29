@@ -54,7 +54,11 @@ The seam is `BaseDistractionControlService` (abstract, in the lib) ← `Distract
 
 ## Rule pipeline
 
-A rule is a single line of ad-block-style text, and that line string is the rule's identity: `FilterRule.equals`/`hashCode` are defined purely on `ruleString`, and `ServiceConfig` uses `rule.hashCode()` as the SharedPreferences key suffix for enabled/paused state. **Editing a rule line in `distraction_rules.txt` silently orphans every user's saved state for that rule.** Treat rule strings as stable identifiers.
+A rule is a single line of ad-block-style text. `FilterRule.equals`/`hashCode` are defined purely on `ruleString`, but saved state is *not*: `ServiceConfig` keys enabled/paused prefs on `FilterRule.identity()`, built only from the matching fields (`viewId`, `desc`, `path`, `className`, `text`, `blockTouches`) plus the package. So `comment`, `category` and `color` are free to edit — **but changing a matching field silently orphans every user's saved state for that rule.**
+
+The legacy scheme (prefs keyed on `ruleString.hashCode()`) is migrated in `ServiceConfig.migrateRuleKeys()`. Because legacy keys hash the *text*, they can only be recomputed from the text that shipped, so `assets/legacy_rules_v0.txt` holds a frozen copy of the 0.9.1 rules per flavour. **Never edit those snapshots**; if `PREFS_VERSION` is bumped again, add a new one. `ServiceConfigTest.everySnapshotRuleStillExistsInTheBundledRules` fails if a bundled rule's matching fields drift away from the snapshot.
+
+Rules in the same package that share a `comment` are rendered as a **single row** in the UI (`RulesAdapter.mergeRules`) and enabled/paused/disabled as a unit — that's how one user-facing switch is backed by several rules (e.g. Instagram's feed needs two sibling containers). Merging ignores `category` and never merges comment-less rules.
 
 Format (see `docs/CUSTOM_RULES.md` for user-facing docs):
 

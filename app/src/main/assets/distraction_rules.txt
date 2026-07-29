@@ -1,8 +1,8 @@
 com.instagram.android##category=Stories##desc=reels tray container##comment=Hide Stories
 com.instagram.android##category=Reels##viewId=com.instagram.android:id/clips_tab##desc=##comment=Hide Reels button
 com.instagram.android##category=Search##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[3]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide search suggestions
-com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed 1/2
-com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed 2/2
+com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed
+com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed
 com.instagram.android##category=Reels##viewId=com.instagram.android:id/root_clips_layout##desc=##comment=Hide Reels layout
 com.instagram.android##category=Main screen##viewId=android:id/list##comment=Hide main screen
 com.linkedin.android##category=Feed##viewId=com.linkedin.android:id/feed_item_update_card##comment=Hide feed item##blockTouches=false
