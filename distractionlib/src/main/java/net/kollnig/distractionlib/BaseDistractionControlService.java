@@ -15,6 +15,7 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.Gravity;
@@ -39,6 +40,14 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     // Absorbs transient foreign-window events (notification shade, status bar
     // updates) that briefly take focus while the target app remains below.
     private static final long CLEAR_OVERLAYS_DELAY_MS = 150;
+    // Floor between full traversals. Overlays track element bounds, so raising
+    // this trades tracking smoothness during a scroll against CPU: too high and
+    // blocked content visibly leaks through before the overlay catches up.
+    private static final long MIN_PROCESS_INTERVAL_MS = 100;
+    // Releasing the all-packages filter is deferred so that blocked elements
+    // scrolling in and out of the viewport do not thrash setServiceInfo(),
+    // which makes the system recompute event routing for every installed app.
+    private static final long SENTINEL_RELEASE_DELAY_MS = 2000;
     // The event types the service needs while it has something to block. When
     // there is nothing to block the mask is set to zero instead, so the system
     // stops dispatching to this process altogether.
@@ -60,14 +69,32 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private boolean sentinelPackagesActive;
     private boolean screenOn = true;
     private boolean processEventScheduled;
+    private long lastProcessUptimeMs;
     private String cachedLauncherPackage;
     private String pauseNotificationPackage;
     private BroadcastReceiver screenReceiver;
 
+    private final Runnable releaseSentinels = () -> {
+        if (sentinelPackagesActive && blockedElements.isEmpty()) {
+            configureAccessibilityService(false);
+        }
+    };
+
     private final Choreographer.FrameCallback processEventFrame = frameTimeNanos -> {
         processEventScheduled = false;
-        runProcessEvent();
+        try {
+            runProcessEvent();
+        } finally {
+            // Measured from the end of the pass, so a slow traversal cannot be
+            // followed immediately by another one.
+            lastProcessUptimeMs = SystemClock.uptimeMillis();
+        }
     };
+
+    // Runs once the inter-pass floor has elapsed, then aligns the actual pass
+    // with the next frame so bounds are read after the app has settled.
+    private final Runnable deferredProcessEvent =
+            () -> Choreographer.getInstance().postFrameCallback(processEventFrame);
 
     private final Runnable processEvent = () -> {
         try {
@@ -304,12 +331,21 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             return;
         }
         processEventScheduled = true;
-        Choreographer.getInstance().postFrameCallback(processEventFrame);
+        // Coalescing onto a frame callback bounds passes to the refresh rate,
+        // which is not a limit worth having for a full tree traversal. Hold a
+        // floor between passes as well; the trailing edge still runs, so the
+        // final state of a burst is always processed.
+        long delay = lastProcessUptimeMs + MIN_PROCESS_INTERVAL_MS - SystemClock.uptimeMillis();
+        if (delay <= 0) {
+            Choreographer.getInstance().postFrameCallback(processEventFrame);
+        } else {
+            ui.postDelayed(deferredProcessEvent, delay);
+        }
     }
 
     private void cancelProcessEvent() {
-        ui.removeCallbacks(processEvent);
         if (processEventScheduled) {
+            ui.removeCallbacks(deferredProcessEvent);
             Choreographer.getInstance().removeFrameCallback(processEventFrame);
             processEventScheduled = false;
         }
@@ -399,6 +435,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void configureAccessibilityService(boolean includeSentinels) {
+        // This call settles the filter state, so any deferred release is moot.
+        ui.removeCallbacks(releaseSentinels);
         try {
             AccessibilityServiceInfo info = getServiceInfo();
             if (info == null) {
@@ -462,67 +500,89 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     private void processRootNode(AccessibilityNodeInfo root) {
         CharSequence packageName = root.getPackageName();
-        if (packageName == null) {
+        if (packageName == null || !root.isVisibleToUser()) {
             return;
         }
 
+        // Rules addressed by path or view id resolve against an index or a
+        // single branch, so they are handled directly. Everything else has to
+        // be matched by inspecting nodes; those rules are collected and
+        // evaluated during one shared walk rather than one walk each.
+        List<FilterRule> scanRules = null;
         for (FilterRule rule : rules) {
-            if (rule.enabled && rule.matchesPackage(packageName)) {
-                applyRule(rule, root);
+            if (!rule.enabled || !rule.matchesPackage(packageName)) {
+                continue;
+            }
+            if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
+                applyPathRule(rule, root);
+            } else if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+                applyViewIdRule(rule, root);
+            } else {
+                if (scanRules == null) {
+                    scanRules = new ArrayList<>();
+                }
+                scanRules.add(rule);
+            }
+        }
+
+        if (scanRules != null) {
+            scanTree(root, scanRules);
+        }
+    }
+
+    private void applyPathRule(FilterRule rule, AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> targets = matchPaths(root, rule.targetPath);
+        for (int mi = 0; mi < targets.size(); mi++) {
+            AccessibilityNodeInfo target = targets.get(mi);
+            try {
+                processTargetView(target, rule, mi);
+            } finally {
+                if (target != root) {
+                    target.recycle();
+                }
             }
         }
     }
 
-    private void applyRule(FilterRule rule, AccessibilityNodeInfo root) {
-        if (root == null || !root.isVisibleToUser()) return;
-
-        if (rule.targetPath != null && !rule.targetPath.isEmpty()) {
-            List<AccessibilityNodeInfo> targets = matchPaths(root, rule.targetPath);
-            for (int mi = 0; mi < targets.size(); mi++) {
-                AccessibilityNodeInfo target = targets.get(mi);
-                try {
-                    processTargetView(target, rule, mi);
-                } finally {
-                    if (target != root) {
-                        target.recycle();
-                    }
-                }
-            }
+    private void applyViewIdRule(FilterRule rule, AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> matches =
+                root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
+        if (matches == null) {
             return;
         }
-
-        if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
-            List<AccessibilityNodeInfo> matches =
-                    root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
-            if (matches != null) {
-                for (AccessibilityNodeInfo match : matches) {
-                    try {
-                        if (match.isVisibleToUser()) {
-                            processTargetView(match, rule);
-                        }
-                    } finally {
-                        match.recycle();
-                    }
+        for (AccessibilityNodeInfo match : matches) {
+            try {
+                if (match.isVisibleToUser()) {
+                    processTargetView(match, rule);
                 }
+            } finally {
+                match.recycle();
             }
-            return;
         }
-
-        applyRuleRecursive(rule, root);
     }
 
-    private void applyRuleRecursive(FilterRule rule, AccessibilityNodeInfo node) {
+    /**
+     * Walks the tree once, testing every scan rule against each node. Each
+     * getChild() call can cross back into the inspected app's process, so the
+     * traversal is the dominant cost of a pass and must not be repeated per
+     * rule.
+     */
+    private void scanTree(AccessibilityNodeInfo node, List<FilterRule> scanRules) {
         if (node == null || !node.isVisibleToUser()) return;
 
-        if (isTargetView(node, rule)) {
-            processTargetView(node, rule);
+        for (int r = 0; r < scanRules.size(); r++) {
+            FilterRule rule = scanRules.get(r);
+            if (isTargetView(node, rule)) {
+                processTargetView(node, rule);
+            }
         }
 
-        for (int i = 0; i < node.getChildCount(); i++) {
+        int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
-                applyRuleRecursive(rule, child);
+                scanTree(child, scanRules);
             } finally {
                 child.recycle();
             }
@@ -785,8 +845,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     }
 
     private void removeSentinelsIfIdle() {
-        if (sentinelPackagesActive && blockedElements.isEmpty()) {
-            configureAccessibilityService(false);
+        if (!sentinelPackagesActive) {
+            return;
+        }
+        ui.removeCallbacks(releaseSentinels);
+        if (blockedElements.isEmpty()) {
+            ui.postDelayed(releaseSentinels, SENTINEL_RELEASE_DELAY_MS);
         }
     }
 
@@ -813,6 +877,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             }
         } finally {
             forceClearAllOverlays();
+            ui.removeCallbacks(releaseSentinels);
         }
     }
 
