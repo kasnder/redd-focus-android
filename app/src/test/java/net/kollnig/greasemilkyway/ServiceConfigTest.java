@@ -302,4 +302,119 @@ public class ServiceConfigTest {
         ServiceConfig config2 = new ServiceConfig(context);
         assertTrue(config2.isRuleEnabled(rule));
     }
+
+    // --- Rule preference keys are derived from rule identity ---
+
+    @Test
+    public void editingPresentationFieldsPreservesRuleState() {
+        // Comment, category and colour do not change what the rule matches, so
+        // editing them must not orphan the user's saved state.
+        FilterRule original = createRule(
+                "com.example.app##viewId=test##category=Feed##comment=Old wording");
+        config.setRuleEnabled(original, true);
+
+        FilterRule edited = createRule(
+                "com.example.app##viewId=test##category=Timeline##comment=New wording##color=00FF00");
+        assertTrue(config.isRuleEnabled(edited));
+    }
+
+    @Test
+    public void editingMatchingFieldsDoesNotReuseRuleState() {
+        FilterRule original = createRule("com.example.app##viewId=test");
+        config.setRuleEnabled(original, true);
+
+        FilterRule different = createRule("com.example.app##viewId=other");
+        assertFalse(config.isRuleEnabled(different));
+    }
+
+    @Test
+    public void contentDescriptionOrderDoesNotAffectKey() {
+        FilterRule oneOrder = createRule("com.example.app##desc=alpha|beta|gamma");
+        config.setRuleEnabled(oneOrder, true);
+
+        FilterRule otherOrder = createRule("com.example.app##desc=gamma|alpha|beta");
+        assertTrue(config.isRuleEnabled(otherOrder));
+    }
+
+    @Test
+    public void rulesDifferingOnlyByPackageHaveDistinctKeys() {
+        FilterRule first = createRule("com.app1##viewId=test");
+        FilterRule second = createRule("com.app2##viewId=test");
+        config.setRuleEnabled(first, true);
+        assertFalse(config.isRuleEnabled(second));
+    }
+
+    // --- Migration from legacy ruleString.hashCode() keys ---
+
+    @Test
+    public void migrationCarriesOverLegacyRuleState() {
+        String ruleString = "com.custom.app##viewId=com.custom.app:id/x##comment=Custom";
+        FilterRule rule = createRule(ruleString);
+        long pausedUntil = System.currentTimeMillis() + 60000;
+
+        // Simulate an install predating the key change.
+        config.getPrefs().edit()
+                .putBoolean(ServiceConfig.KEY_RULE_ENABLED + ruleString.hashCode(), true)
+                .putLong("pause_until_rule_" + ruleString.hashCode(), pausedUntil)
+                .apply();
+        config.addCustomRule(ruleString);
+
+        assertFalse("state should not be readable before migration", config.isRuleEnabled(rule));
+
+        config.getRules();
+
+        assertTrue("enabled state should survive the key change", config.isRuleEnabled(rule));
+        assertEquals(pausedUntil, config.getRulePausedUntil(rule));
+    }
+
+    @Test
+    public void migrationClearsLegacyKeys() {
+        String ruleString = "com.custom.app##viewId=com.custom.app:id/x##comment=Custom";
+        String legacyKey = ServiceConfig.KEY_RULE_ENABLED + ruleString.hashCode();
+
+        config.getPrefs().edit().putBoolean(legacyKey, true).apply();
+        config.addCustomRule(ruleString);
+        config.getRules();
+
+        assertFalse(config.getPrefs().contains(legacyKey));
+    }
+
+    @Test
+    public void migrationDoesNotOverwriteNewerState() {
+        String ruleString = "com.custom.app##viewId=com.custom.app:id/x##comment=Custom";
+        FilterRule rule = createRule(ruleString);
+
+        config.getPrefs().edit()
+                .putBoolean(ServiceConfig.KEY_RULE_ENABLED + ruleString.hashCode(), true)
+                .apply();
+        config.addCustomRule(ruleString);
+        // State already written under the new scheme wins over the legacy value.
+        config.setRuleEnabled(rule, false);
+
+        config.getRules();
+
+        assertFalse(config.isRuleEnabled(rule));
+    }
+
+    @Test
+    public void migrationRunsOnlyOnce() {
+        String ruleString = "com.custom.app##viewId=com.custom.app:id/x##comment=Custom";
+        FilterRule rule = createRule(ruleString);
+
+        config.getPrefs().edit()
+                .putBoolean(ServiceConfig.KEY_RULE_ENABLED + ruleString.hashCode(), true)
+                .apply();
+        config.addCustomRule(ruleString);
+        config.getRules();
+        assertTrue(config.isRuleEnabled(rule));
+
+        // A later opt-out must not be undone by the legacy value reappearing.
+        config.setRuleEnabled(rule, false);
+        config.getPrefs().edit()
+                .putBoolean(ServiceConfig.KEY_RULE_ENABLED + ruleString.hashCode(), true)
+                .apply();
+        config.getRules();
+
+        assertFalse(config.isRuleEnabled(rule));
+    }
 }

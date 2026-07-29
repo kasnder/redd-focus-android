@@ -13,17 +13,23 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class PauseNotification {
+    private static final String TAG = "PauseNotification";
     private static final String CHANNEL_ID = "pause_channel";
     private static final int NOTIFICATION_ID = 1002;
 
     private final Context context;
     private final NotificationManager notificationManager;
     private final ServiceConfig config;
+    private final Map<String, Bitmap> iconCache = new HashMap<>();
 
     public PauseNotification(Context context) {
         this.context = context.getApplicationContext();
@@ -92,19 +98,34 @@ public class PauseNotification {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    /**
+     * Rasterising an adaptive icon means a PackageManager lookup, a drawable
+     * load and a full draw into a fresh bitmap. This runs on the accessibility
+     * service's dispatch thread every time the user enters a target app, so the
+     * result is cached: the key set is bounded by the number of blocked apps.
+     */
     private Bitmap getAppIcon(String packageName) {
+        if (iconCache.containsKey(packageName)) {
+            return iconCache.get(packageName);
+        }
+
+        Bitmap bitmap = null;
         try {
             PackageManager packageManager = context.getPackageManager();
             ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
             Drawable icon = packageManager.getApplicationIcon(appInfo);
             int size = context.getResources().getDimensionPixelSize(android.R.dimen.app_icon_size);
-            Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
             icon.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
             icon.draw(canvas);
-            return bitmap;
         } catch (PackageManager.NameNotFoundException e) {
-            return null;
+            Log.w(TAG, "No icon for " + packageName, e);
         }
+
+        // Negative results are cached too, so a missing package does not retry
+        // the lookup on every app switch.
+        iconCache.put(packageName, bitmap);
+        return bitmap;
     }
 }
