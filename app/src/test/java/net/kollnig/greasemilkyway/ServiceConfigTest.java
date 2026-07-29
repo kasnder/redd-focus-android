@@ -11,8 +11,14 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.*;
 
@@ -416,5 +422,96 @@ public class ServiceConfigTest {
         config.getRules();
 
         assertFalse(config.isRuleEnabled(rule));
+    }
+
+    // --- Migration of bundled rules via the frozen 0.9.1 snapshot ---
+
+    private List<FilterRule> parseAsset(String assetName) {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                context.getAssets().open(assetName), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    lines.add(line);
+                }
+            }
+        } catch (IOException e) {
+            throw new AssertionError("could not read " + assetName, e);
+        }
+        return new FilterRuleParser().parseRules(lines.toArray(new String[0]));
+    }
+
+    /**
+     * The snapshot only recovers a rule's state if that rule still exists with
+     * the same matching fields, since identity is what the state is re-filed
+     * under. Editing a bundled rule's viewId/desc/path/blockTouches therefore
+     * silently drops the saved state of everyone upgrading from 0.9.1 -- which
+     * is defensible for a rule that genuinely now targets something else, but
+     * must be a deliberate choice rather than a slip. Adding new rules is fine.
+     */
+    @Test
+    public void everySnapshotRuleStillExistsInTheBundledRules() {
+        Set<String> current = new HashSet<>();
+        for (FilterRule rule : parseAsset("distraction_rules.txt")) {
+            current.add(rule.identity());
+        }
+
+        for (FilterRule legacy : parseAsset("legacy_rules_v0.txt")) {
+            assertTrue("no bundled rule matches the 0.9.1 rule: " + legacy.ruleString,
+                    current.contains(legacy.identity()));
+        }
+    }
+
+    @Test
+    public void migrationCarriesOverBuiltInStateAcrossEditedRuleText() {
+        List<FilterRule> legacyRules = parseAsset("legacy_rules_v0.txt");
+        long pausedUntil = System.currentTimeMillis() + 60000;
+        for (FilterRule legacy : legacyRules) {
+            config.getPrefs().edit()
+                    .putBoolean(ServiceConfig.KEY_RULE_ENABLED + legacy.ruleString.hashCode(), true)
+                    .putLong("pause_until_rule_" + legacy.ruleString.hashCode(), pausedUntil)
+                    .apply();
+        }
+
+        List<FilterRule> rules = config.getRules();
+
+        for (FilterRule legacy : legacyRules) {
+            FilterRule current = null;
+            for (FilterRule rule : rules) {
+                if (rule.identity().equals(legacy.identity())) {
+                    current = rule;
+                    break;
+                }
+            }
+            assertNotNull("bundled rule missing for " + legacy.ruleString, current);
+            assertTrue("enabled state lost for " + legacy.ruleString,
+                    config.isRuleEnabled(current));
+            assertEquals("pause lost for " + legacy.ruleString,
+                    pausedUntil, config.getRulePausedUntil(current));
+        }
+    }
+
+    /**
+     * The case the snapshot exists for: the bundled feed rules gained a
+     * category and had their comments merged after 0.9.1, so their text-derived
+     * legacy keys no longer match what users have stored.
+     */
+    @Test
+    public void migrationHandlesBundledRulesWhoseTextChangedSinceRelease() {
+        boolean sawEditedRule = false;
+        Set<String> currentText = new HashSet<>();
+        for (FilterRule rule : parseAsset("distraction_rules.txt")) {
+            currentText.add(rule.ruleString);
+        }
+        for (FilterRule legacy : parseAsset("legacy_rules_v0.txt")) {
+            if (!currentText.contains(legacy.ruleString)) {
+                sawEditedRule = true;
+                break;
+            }
+        }
+        assertTrue("expected at least one bundled rule to have been edited since 0.9.1; "
+                + "if none remain, migrationCarriesOverBuiltInStateAcrossEditedRuleText "
+                + "no longer proves the snapshot is doing anything", sawEditedRule);
     }
 }

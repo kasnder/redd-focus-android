@@ -32,6 +32,11 @@ public class ServiceConfig {
     private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
     private static final String KEY_PREFS_VERSION = "prefs_version";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
+    /**
+     * The bundled rules as shipped by the last release that used legacy
+     * preference keys. Frozen; see the file's own header.
+     */
+    private static final String LEGACY_RULES_V0_FILE = "legacy_rules_v0.txt";
     /** 1: rule keys derived from rule identity rather than ruleString.hashCode(). */
     private static final int PREFS_VERSION = 1;
 
@@ -72,6 +77,29 @@ public class ServiceConfig {
         }
     }
 
+    /**
+     * Reads a bundled rules file, dropping blank lines. Returns null -- as
+     * distinct from an empty list -- if the asset could not be read at all,
+     * since callers treat a failed read as "rule set incomplete" rather than
+     * "no rules".
+     */
+    private List<String> readAssetLines(String assetName) {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                context.getAssets().open(assetName), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    lines.add(line);
+                }
+            }
+            return lines;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to read " + assetName, e);
+            return null;
+        }
+    }
+
     public void setRuleEnabled(FilterRule rule, boolean enabled) {
         String key = KEY_RULE_ENABLED + ruleKeySuffix(rule);
         prefs.edit().putBoolean(key, enabled).apply();
@@ -97,6 +125,18 @@ public class ServiceConfig {
      * upgrading would silently reset every rule the user had enabled or
      * paused.
      *
+     * <p>The legacy key is the hash of the rule's <em>text</em>, so it can
+     * only be recomputed from the text the user's previous version shipped,
+     * not from the current rules: bundled rule lines get edited between
+     * releases (adding a category, fixing a comment) without that being meant
+     * to reset anything. {@link #LEGACY_RULES_V0_FILE} therefore holds a
+     * frozen copy of the rules as last shipped under the old scheme, and the
+     * legacy keys are derived from those lines. Their destination is the
+     * identity-derived key, which is unaffected by such edits, so the state
+     * lands on the current rule regardless of how its text has changed.
+     * {@code knownRules} is migrated too, which is what covers custom rules:
+     * those are stored verbatim, so their text is its own snapshot.
+     *
      * <p>{@code completeRuleSet} must be false whenever {@code knownRules}
      * might be missing rules -- e.g. the bundled rules file failed to load.
      * In that case legacy keys for the rules present (typically just custom
@@ -109,8 +149,14 @@ public class ServiceConfig {
             return;
         }
 
+        List<FilterRule> toMigrate = new ArrayList<>(knownRules);
+        List<String> legacyLines = readAssetLines(LEGACY_RULES_V0_FILE);
+        if (legacyLines != null && !legacyLines.isEmpty()) {
+            toMigrate.addAll(ruleParser.parseRules(legacyLines.toArray(new String[0])));
+        }
+
         SharedPreferences.Editor editor = prefs.edit();
-        for (FilterRule rule : knownRules) {
+        for (FilterRule rule : toMigrate) {
             String legacy = String.valueOf(rule.ruleString.hashCode());
             String current = ruleKeySuffix(rule);
 
@@ -132,7 +178,9 @@ public class ServiceConfig {
                 editor.remove(legacyPause);
             }
         }
-        if (completeRuleSet) {
+        // A missing snapshot leaves the bundled rules' legacy state untouched,
+        // which is the same partial-migration case as a missing rules file.
+        if (completeRuleSet && legacyLines != null) {
             editor.putInt(KEY_PREFS_VERSION, PREFS_VERSION);
         }
         editor.apply();
@@ -164,21 +212,9 @@ public class ServiceConfig {
         // Add default rules from file. Collected first and parsed in one call:
         // parsing line by line allocated a single-element array and re-entered
         // the parser for every rule in the file.
-        List<String> defaultRuleLines = new ArrayList<>();
-        boolean defaultRulesReadOk = false;
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(context.getAssets().open(DEFAULT_RULES_FILE)))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.trim().isEmpty()) {
-                    defaultRuleLines.add(line);
-                }
-            }
-            defaultRulesReadOk = true;
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to read " + DEFAULT_RULES_FILE, e);
-        }
-        if (!defaultRuleLines.isEmpty()) {
+        List<String> defaultRuleLines = readAssetLines(DEFAULT_RULES_FILE);
+        boolean defaultRulesReadOk = defaultRuleLines != null;
+        if (defaultRuleLines != null && !defaultRuleLines.isEmpty()) {
             rules.addAll(ruleParser.parseRules(defaultRuleLines.toArray(new String[0])));
         }
 
