@@ -10,6 +10,9 @@ import net.kollnig.distractionlib.FilterRuleParser;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +30,10 @@ public class ServiceConfig {
     private static final String KEY_FRICTION_WORD_COUNT = "friction_word_count";
     private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
     private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
+    private static final String KEY_PREFS_VERSION = "prefs_version";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
+    /** 1: rule keys derived from rule identity rather than ruleString.hashCode(). */
+    private static final int PREFS_VERSION = 1;
 
     private final SharedPreferences prefs;
     private final FilterRuleParser ruleParser;
@@ -43,23 +49,83 @@ public class ServiceConfig {
         return prefs;
     }
 
+    /**
+     * Preference suffix identifying a rule. Derived from the rule's matching
+     * fields rather than its raw text, so editing a bundled rule's comment,
+     * category or colour preserves the user's saved state for it. Truncated to
+     * 64 bits, which is ample for a rule set of this size and far more
+     * collision-resistant than the 32-bit String.hashCode() used previously.
+     */
+    static String ruleKeySuffix(FilterRule rule) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                    .digest(rule.identity().getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) {
+                sb.append(Character.forDigit((hash[i] >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(hash[i] & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is mandated on every Android platform.
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
     public void setRuleEnabled(FilterRule rule, boolean enabled) {
-        String key = KEY_RULE_ENABLED + rule.hashCode();
+        String key = KEY_RULE_ENABLED + ruleKeySuffix(rule);
         prefs.edit().putBoolean(key, enabled).apply();
     }
 
     public boolean isRuleEnabled(FilterRule rule) {
-        return prefs.getBoolean(KEY_RULE_ENABLED + rule.hashCode(), false);
+        return prefs.getBoolean(KEY_RULE_ENABLED + ruleKeySuffix(rule), false);
     }
-    
+
     public void setRulePausedUntil(FilterRule rule, long timestampMillis) {
-        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        String key = KEY_PAUSE_UNTIL_RULE_ + ruleKeySuffix(rule);
         prefs.edit().putLong(key, timestampMillis).apply();
     }
-    
+
     public long getRulePausedUntil(FilterRule rule) {
-        String key = KEY_PAUSE_UNTIL_RULE_ + rule.hashCode();
+        String key = KEY_PAUSE_UNTIL_RULE_ + ruleKeySuffix(rule);
         return prefs.getLong(key, 0);
+    }
+
+    /**
+     * Moves saved state from the legacy ruleString.hashCode() keys to the
+     * identity-derived ones. Runs once; without it, upgrading would silently
+     * reset every rule the user had enabled or paused.
+     */
+    private void migrateRuleKeys(List<FilterRule> knownRules) {
+        if (prefs.getInt(KEY_PREFS_VERSION, 0) >= PREFS_VERSION) {
+            return;
+        }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        for (FilterRule rule : knownRules) {
+            String legacy = String.valueOf(rule.ruleString.hashCode());
+            String current = ruleKeySuffix(rule);
+
+            String legacyEnabled = KEY_RULE_ENABLED + legacy;
+            String currentEnabled = KEY_RULE_ENABLED + current;
+            if (prefs.contains(legacyEnabled)) {
+                if (!prefs.contains(currentEnabled)) {
+                    editor.putBoolean(currentEnabled, prefs.getBoolean(legacyEnabled, false));
+                }
+                editor.remove(legacyEnabled);
+            }
+
+            String legacyPause = KEY_PAUSE_UNTIL_RULE_ + legacy;
+            String currentPause = KEY_PAUSE_UNTIL_RULE_ + current;
+            if (prefs.contains(legacyPause)) {
+                if (!prefs.contains(currentPause)) {
+                    editor.putLong(currentPause, prefs.getLong(legacyPause, 0));
+                }
+                editor.remove(legacyPause);
+            }
+        }
+        editor.putInt(KEY_PREFS_VERSION, PREFS_VERSION);
+        editor.apply();
     }
 
     public void setPackageDisabled(String packageName, boolean disabled) {
@@ -114,11 +180,14 @@ public class ServiceConfig {
             rules.addAll(parsedCustomRules);
         }
 
+        // Rules are all known at this point, so this is where legacy keys can
+        // be mapped onto their identity-derived replacements.
+        migrateRuleKeys(rules);
+
         // Apply saved enabled states
         long currentTime = System.currentTimeMillis();
         for (FilterRule rule : rules) {
-            String ruleEnabledKey = KEY_RULE_ENABLED + rule.hashCode();
-            boolean ruleEnabled = prefs.getBoolean(ruleEnabledKey, false);
+            boolean ruleEnabled = isRuleEnabled(rule);
             
             long packagePauseUntil = 0;
             if (rule.packageName != null) {
