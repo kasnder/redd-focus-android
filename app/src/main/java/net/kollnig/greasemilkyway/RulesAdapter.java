@@ -459,20 +459,22 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 String fullText = "Made with ❤️ by reddfocus.org";
                 SpannableString spannableString = new SpannableString(fullText);
                 int start = fullText.indexOf("reddfocus.org");
-                int end = start + "reddfocus.org".length();
-                ClickableSpan clickableSpan = new ClickableSpan() {
-                    @Override
-                    public void onClick(View widget) {
-                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
-                        context.startActivity(browserIntent);
-                    }
-                    @Override
-                    public void updateDrawState(android.text.TextPaint ds) {
-                        ds.setUnderlineText(false);
-                        ds.setColor(viewHolder.footerText.getCurrentTextColor());
-                    }
-                };
-                spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (start >= 0) {
+                    int end = start + "reddfocus.org".length();
+                    ClickableSpan clickableSpan = new ClickableSpan() {
+                        @Override
+                        public void onClick(View widget) {
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://reddfocus.org"));
+                            context.startActivity(browserIntent);
+                        }
+                        @Override
+                        public void updateDrawState(android.text.TextPaint ds) {
+                            ds.setUnderlineText(false);
+                            ds.setColor(viewHolder.footerText.getCurrentTextColor());
+                        }
+                    };
+                    spannableString.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
                 viewHolder.footerText.setText(spannableString);
                 viewHolder.footerText.setMovementMethod(LinkMovementMethod.getInstance());
                 viewHolder.footerText.setHighlightColor(android.graphics.Color.TRANSPARENT);
@@ -485,21 +487,23 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             String email = "konrad.kollnig@maastrichtuniversity.nl";
             SpannableString recruitmentSpannable = new SpannableString(recruitmentFull);
             int emailStart = recruitmentFull.indexOf(email);
-            int emailEnd = emailStart + email.length();
-            ClickableSpan emailSpan = new ClickableSpan() {
-                @Override
-                public void onClick(View widget) {
-                    Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
-                    emailIntent.setData(Uri.parse("mailto:" + email));
-                    context.startActivity(emailIntent);
-                }
-                @Override
-                public void updateDrawState(android.text.TextPaint ds) {
-                    ds.setUnderlineText(true);
-                    ds.setColor(viewHolder.recruitmentText.getCurrentTextColor());
-                }
-            };
-            recruitmentSpannable.setSpan(emailSpan, emailStart, emailEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (emailStart >= 0) {
+                int emailEnd = emailStart + email.length();
+                ClickableSpan emailSpan = new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
+                        emailIntent.setData(Uri.parse("mailto:" + email));
+                        context.startActivity(emailIntent);
+                    }
+                    @Override
+                    public void updateDrawState(android.text.TextPaint ds) {
+                        ds.setUnderlineText(true);
+                        ds.setColor(viewHolder.recruitmentText.getCurrentTextColor());
+                    }
+                };
+                recruitmentSpannable.setSpan(emailSpan, emailStart, emailEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
             viewHolder.recruitmentText.setText(recruitmentSpannable);
             viewHolder.recruitmentText.setMovementMethod(LinkMovementMethod.getInstance());
             viewHolder.recruitmentText.setHighlightColor(android.graphics.Color.TRANSPARENT);
