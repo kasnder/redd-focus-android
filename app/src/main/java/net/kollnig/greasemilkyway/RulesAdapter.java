@@ -628,6 +628,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
      * Rules without a comment never merge: they fall back to a shared
      * placeholder name, which would otherwise collapse every unlabelled custom
      * rule into one row.
+     *
+     * <p>A custom rule never merges with a built-in one even if they share a
+     * comment: a mixed row can't be deleted (the delete path requires every
+     * part to be custom) and toggling it would silently flip the user's own
+     * rule along with the built-in one.
      */
     static List<List<FilterRule>> mergeRules(List<FilterRule> rules) {
         List<List<FilterRule>> rows = new ArrayList<>();
@@ -640,10 +645,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 rows.add(row);
                 continue;
             }
-            List<FilterRule> row = byComment.get(comment);
+            String key = rule.isCustom + " " + comment;
+            List<FilterRule> row = byComment.get(key);
             if (row == null) {
                 row = new ArrayList<>();
-                byComment.put(comment, row);
+                byComment.put(key, row);
                 rows.add(row);
             }
             row.add(rule);

@@ -109,4 +109,22 @@ public class RulesAdapterTest {
         assertEquals(1, rows.size());
         assertEquals(2, rows.get(0).size());
     }
+
+    /**
+     * A mixed row can't be deleted (deleting requires every part to be
+     * custom) and toggling it would silently flip the user's own rule along
+     * with the built-in one, so custom and built-in rules must never share a
+     * row even when their comments match.
+     */
+    @Test
+    public void customRuleNeverMergesWithABuiltInRuleSharingItsComment() {
+        List<FilterRule> rules = parse(
+                "com.example.app##path=A[*]##comment=Hide feed",
+                "com.example.app##path=B[*]##comment=Hide feed");
+        rules.get(1).isCustom = true;
+
+        List<List<FilterRule>> rows = RulesAdapter.mergeRules(rules);
+
+        assertEquals(2, rows.size());
+    }
 }
