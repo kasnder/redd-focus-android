@@ -109,6 +109,155 @@ public class FilterRuleParserTest {
     }
 
     @Test
+    public void parseAnchoredPathRule() {
+        String[] raw = {"com.example.app##viewId=com.example.app:id/list"
+                + "##childPath=android.view.ViewGroup[*]"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(1, rules.size());
+        assertEquals("com.example.app:id/list", rules.get(0).targetViewId);
+        assertEquals("android.view.ViewGroup[*]", rules.get(0).targetChildPath);
+        assertNull(rules.get(0).targetPath);
+    }
+
+    @Test
+    public void parseThumbnailWidthInDp() {
+        String[] raw = {
+                "com.example.app##viewId=test##hasThumbnail=160",
+                "com.example.app##viewId=test##hasThumbnail=160dp"
+        };
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(160, rules.get(0).minThumbnailWidthDp);
+        assertEquals(160, rules.get(1).minThumbnailWidthDp);
+    }
+
+    @Test
+    public void parseThumbnailTrueUsesDefaultWidth() {
+        String[] raw = {"com.example.app##viewId=test##hasThumbnail=true"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(FilterRuleParser.DEFAULT_MIN_THUMBNAIL_WIDTH_DP,
+                rules.get(0).minThumbnailWidthDp);
+    }
+
+    @Test
+    public void parseThumbnailFalseDisablesCheck() {
+        String[] raw = {"com.example.app##viewId=test##hasThumbnail=false"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(0, rules.get(0).minThumbnailWidthDp);
+    }
+
+    @Test
+    public void parseUnusableThumbnailWidthFallsBackToDefault() {
+        // Falling back to the default keeps the rule narrow. Disabling the check would widen
+        // it to every element the rule is paired with, which is the more damaging mistake.
+        String[] raw = {
+                "com.example.app##viewId=test##hasThumbnail=wide",
+                "com.example.app##viewId=test##hasThumbnail=0.7",
+                "com.example.app##viewId=test##hasThumbnail=12"
+        };
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(3, rules.size());
+        for (FilterRule rule : rules) {
+            assertEquals(FilterRuleParser.DEFAULT_MIN_THUMBNAIL_WIDTH_DP,
+                    rule.minThumbnailWidthDp);
+        }
+    }
+
+    @Test
+    public void parseRuleWithoutThumbnailKeyDisablesCheck() {
+        String[] raw = {"com.example.app##viewId=test"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertEquals(0, rules.get(0).minThumbnailWidthDp);
+    }
+
+    @Test
+    public void parseRuleWithoutScreenMarkersAppliesEverywhere() {
+        String[] raw = {"com.example.app##viewId=test"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertNull(rules.get(0).screenCondition);
+    }
+
+    @Test
+    public void parseRequiredViewIdMarker() {
+        String[] raw = {"com.example.app##viewId=test##requiresViewId=com.example.app:id/logo"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        FilterRule.ScreenCondition condition = rules.get(0).screenCondition;
+        assertNotNull(condition);
+        assertEquals("com.example.app:id/logo", condition.requiredViewId);
+        assertNull(condition.selectedViewId);
+    }
+
+    @Test
+    public void parseSelectedMarkerWithChildPath() {
+        String[] raw = {"com.example.app##viewId=test##requiresSelected=com.example.app:id/nav"
+                + ">android.widget.LinearLayout[0]>android.widget.Button[0]"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        FilterRule.ScreenCondition condition = rules.get(0).screenCondition;
+        assertNotNull(condition);
+        assertEquals("com.example.app:id/nav", condition.selectedViewId);
+        assertEquals("android.widget.LinearLayout[0]>android.widget.Button[0]",
+                condition.selectedChildPath);
+    }
+
+    @Test
+    public void parseSelectedMarkerWithoutChildPath() {
+        String[] raw = {"com.example.app##viewId=test##requiresSelected=com.example.app:id/tab"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        FilterRule.ScreenCondition condition = rules.get(0).screenCondition;
+        assertNotNull(condition);
+        assertEquals("com.example.app:id/tab", condition.selectedViewId);
+        assertNull(condition.selectedChildPath);
+    }
+
+    @Test
+    public void parseSelectedMarkerWithEmptyPathDropsRule() {
+        // A screen marker that cannot be read is a broken guardrail, not an absent one: the
+        // rule is dropped rather than applied without the restriction it was given.
+        String[] raw = {"com.example.app##viewId=test##requiresSelected=com.example.app:id/nav>"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertTrue(rules.isEmpty());
+    }
+
+    @Test
+    public void parseRequiresViewIdWithEmptyValueDropsRule() {
+        String[] raw = {"com.example.app##viewId=test##requiresViewId="};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertTrue(rules.isEmpty());
+    }
+
+    @Test
+    public void parseRequiresSelectedWithEmptyValueDropsRule() {
+        String[] raw = {"com.example.app##viewId=test##requiresSelected="};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        assertTrue(rules.isEmpty());
+    }
+
+    @Test
+    public void parseBothScreenMarkers() {
+        String[] raw = {"com.example.app##viewId=test##requiresViewId=com.example.app:id/logo"
+                + "##requiresSelected=com.example.app:id/nav>android.widget.Button[0]"};
+        List<FilterRule> rules = parser.parseRules(raw);
+
+        FilterRule.ScreenCondition condition = rules.get(0).screenCondition;
+        assertNotNull(condition);
+        assertEquals("com.example.app:id/logo", condition.requiredViewId);
+        assertEquals("com.example.app:id/nav", condition.selectedViewId);
+        assertEquals("android.widget.Button[0]", condition.selectedChildPath);
+    }
+
+    @Test
     public void parseColorWithHash() {
         String[] raw = {"com.example.app##viewId=test##color=#FF0000"};
         List<FilterRule> rules = parser.parseRules(raw);

@@ -9,6 +9,7 @@ import org.robolectric.RobolectricTestRunner;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
+import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
 public class ElementPickerRuleGeneratorTest {
@@ -20,6 +21,14 @@ public class ElementPickerRuleGeneratorTest {
         // Use a real AccessibilityNodeInfo instead of a mock so that
         // Robolectric's equals() works correctly inside generatePath/generatePathWithWildcard.
         rootNode = AccessibilityNodeInfo.obtain();
+    }
+
+    /** Appends a child of the given class to a node and returns it. */
+    private static AccessibilityNodeInfo child(AccessibilityNodeInfo parent, String className) {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setClassName(className);
+        shadowOf(parent).addChild(node);
+        return node;
     }
 
     @Test
@@ -211,6 +220,54 @@ public class ElementPickerRuleGeneratorTest {
         String desc = ElementPickerRuleGenerator.getSelectorDescription(node, rootNode);
 
         assertEquals("Unknown element", desc);
+    }
+
+    @Test
+    public void generateRuleAnchorsPathOnNearestViewIdAncestor() {
+        AccessibilityNodeInfo list = child(rootNode, "androidx.recyclerview.widget.RecyclerView");
+        list.setViewIdResourceName("com.example:id/list");
+        child(list, "android.view.ViewGroup");
+        AccessibilityNodeInfo target = child(list, "android.view.ViewGroup");
+
+        String rule = ElementPickerRuleGenerator.generateRule(target, rootNode, "com.example", null);
+
+        assertEquals("com.example##viewId=com.example:id/list"
+                + "##childPath=android.view.ViewGroup[1]", rule);
+    }
+
+    @Test
+    public void generateRuleFallsBackToRootRelativePathWithoutViewIdAncestor() {
+        AccessibilityNodeInfo container = child(rootNode, "android.widget.FrameLayout");
+        AccessibilityNodeInfo target = child(container, "android.view.ViewGroup");
+
+        String rule = ElementPickerRuleGenerator.generateRule(target, rootNode, "com.example", null);
+
+        assertEquals("com.example##path=android.widget.FrameLayout[0]"
+                + ">android.view.ViewGroup[0]", rule);
+    }
+
+    @Test
+    public void generateRuleForAllAnchorsPathAndWildcardsTheLeaf() {
+        AccessibilityNodeInfo list = child(rootNode, "androidx.recyclerview.widget.RecyclerView");
+        list.setViewIdResourceName("com.example:id/list");
+        AccessibilityNodeInfo target = child(list, "android.view.ViewGroup");
+
+        String rule = ElementPickerRuleGenerator.generateRuleForAll(
+                target, rootNode, "com.example", "Hide cards");
+
+        assertEquals("com.example##viewId=com.example:id/list"
+                + "##childPath=android.view.ViewGroup[*]##comment=Hide cards", rule);
+    }
+
+    @Test
+    public void getSelectorDescriptionReportsAnchor() {
+        AccessibilityNodeInfo list = child(rootNode, "androidx.recyclerview.widget.RecyclerView");
+        list.setViewIdResourceName("com.example:id/list");
+        AccessibilityNodeInfo target = child(list, "android.view.ViewGroup");
+
+        String desc = ElementPickerRuleGenerator.getSelectorDescription(target, rootNode);
+
+        assertEquals("Path under com.example:id/list: android.view.ViewGroup[0]", desc);
     }
 
     @Test
