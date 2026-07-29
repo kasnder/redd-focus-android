@@ -117,6 +117,7 @@ public class FilterRuleParser {
 
             rules.add(new FilterRule(packageName, targetViewId, descriptions, targetClassName,
                     targetText, targetPath, color, currentComment, category, line, blockTouches));
+            currentComment = null;
         }
 
         return rules;

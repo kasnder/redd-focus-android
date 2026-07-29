@@ -95,8 +95,17 @@ public class CustomRulesActivity extends AppCompatActivity {
 
     private void saveRules() {
         String rulesText = rulesEditor.getText().toString();
-        String[] rules = rulesText.split("\n");
-        
+        String[] rawLines = rulesText.split("\n");
+
+        // Filter out empty lines to avoid accumulating blanks
+        java.util.List<String> filtered = new java.util.ArrayList<>();
+        for (String line : rawLines) {
+            if (!line.trim().isEmpty()) {
+                filtered.add(line);
+            }
+        }
+        String[] rules = filtered.toArray(new String[0]);
+
         // Parse rules
         FilterRuleParser parser = new FilterRuleParser();
         try {
