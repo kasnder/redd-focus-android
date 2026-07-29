@@ -39,6 +39,14 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     // Absorbs transient foreign-window events (notification shade, status bar
     // updates) that briefly take focus while the target app remains below.
     private static final long CLEAR_OVERLAYS_DELAY_MS = 150;
+    // The event types the service needs while it has something to block. When
+    // there is nothing to block the mask is set to zero instead, so the system
+    // stops dispatching to this process altogether.
+    private static final int ACTIVE_EVENT_TYPES =
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                    | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    | AccessibilityEvent.TYPE_VIEW_SCROLLED
+                    | AccessibilityEvent.TYPE_WINDOWS_CHANGED;
 
     private final List<FilterRule> rules = new ArrayList<>();
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -212,9 +220,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     ui.removeCallbacks(pendingClear);
                     cancelPauseNotification();
                     forceClearAllOverlays();
+                    // Stop delivery at the source rather than receiving events
+                    // and discarding them in onAccessibilityEvent().
+                    configureAccessibilityService(false);
                 } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                     screenOn = true;
                     Log.d(getLogTag(), "Screen on - resuming accessibility processing");
+                    configureAccessibilityService(false);
                 }
             }
         };
@@ -259,6 +271,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         if (isNonTarget) {
             cancelProcessEvent();
             ui.removeCallbacks(pendingClear);
+            // Nothing is attached, so there is nothing to tear down. Skip the
+            // delayed check entirely rather than paying for a root-window
+            // lookup that would find no work to do.
+            if (!hasStateToClear()) {
+                return;
+            }
             // SystemUI often reports notification-shade movement as content or
             // scroll changes rather than a clean window-state change. Delay,
             // then inspect the active root window before clearing so transient
@@ -302,24 +320,46 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         try {
             root = getRootInActiveWindow();
             if (root == null) {
-                forceClearAllOverlays();
+                leaveTargetApp();
                 return;
             }
 
             CharSequence rootPkg = root.getPackageName();
             if (rootPkg == null || !hasMatchingRule(rootPkg) || !shouldProcessRules()) {
-                forceClearAllOverlays();
+                leaveTargetApp();
             } else {
                 scheduleProcessEvent();
             }
         } catch (Exception e) {
             Log.e(getLogTag(), "Error checking active window before clearing overlays", e);
-            forceClearAllOverlays();
+            leaveTargetApp();
         } finally {
             if (root != null) {
                 root.recycle();
             }
         }
+    }
+
+    /**
+     * Tears down everything tied to being inside a target app. The pause
+     * notification offers to pause blocking for a specific package, so it must
+     * go away with the overlays — otherwise it lingers after the user has left
+     * that app, and the same-package guard in showPauseNotification() prevents
+     * it from ever being refreshed on return.
+     */
+    private void leaveTargetApp() {
+        cancelPauseNotification();
+        forceClearAllOverlays();
+    }
+
+    /**
+     * Whether the service currently holds state that a foreground change would
+     * need to tear down.
+     */
+    private boolean hasStateToClear() {
+        return !blockedElements.isEmpty()
+                || sentinelPackagesActive
+                || pauseNotificationPackage != null;
     }
 
     private boolean hasMatchingRule(CharSequence packageName) {
@@ -376,15 +416,23 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             }
 
             sentinelPackagesActive = includeSentinels;
+            // A null packageNames means "every package on the device", so an
+            // empty target set must never reach it. With no rules enabled — the
+            // default state, since rules are opt-in — there is nothing to block,
+            // so silence the service instead of subscribing to the whole system.
+            // The same applies while the screen is off.
+            boolean suppressEvents = packages.isEmpty() || !screenOn;
+            info.eventTypes = suppressEvents ? 0 : ACTIVE_EVENT_TYPES;
             // While overlays are attached, temporarily observe all packages so
             // any foreground transition can clear them. The stricter target-app
             // filter is restored as soon as overlays are gone.
-            info.packageNames = packages.isEmpty() || includeSentinels
+            info.packageNames = suppressEvents || includeSentinels
                     ? null
                     : packages.toArray(new String[0]);
             setServiceInfo(info);
-            Log.i(getLogTag(), "Package filter updated: "
-                    + (info.packageNames == null ? "all packages" : packages));
+            Log.i(getLogTag(), "Event filter updated: " + (suppressEvents
+                    ? "suppressed (" + (packages.isEmpty() ? "no enabled rules" : "screen off") + ")"
+                    : (info.packageNames == null ? "all packages" : packages.toString())));
         } catch (Exception e) {
             Log.e(getLogTag(), "Error configuring accessibility service", e);
         }
