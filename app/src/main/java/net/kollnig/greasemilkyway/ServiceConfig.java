@@ -385,10 +385,44 @@ public class ServiceConfig {
         return prefs.getBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), false);
     }
 
-    public void setNavigationRuleEnabled(FilterRule rule, boolean enabled) {
-        prefs.edit()
-                .putBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), enabled)
-                .apply();
+    /**
+     * Switches a navigation rule on or off, switching off any other rule for the same app.
+     *
+     * <p>Only one navigation rule per app can actually run: {@code AutoNavigator} resolves a
+     * package to a single rule. Letting several appear enabled was worse than the limitation
+     * itself, because the rules list counted them all and reported "2 of 3 active" while one of
+     * the two was never going to fire. Enforcing the limit here makes what the list shows true.
+     *
+     * <p>This method is what maintains the limit, so there is only ever one rule to switch off;
+     * it clears any others by iteration rather than assuming, but the plural case does not
+     * arise and is not something to design around.
+     *
+     * @return whether another rule was switched off, for telling the user why
+     */
+    public boolean setNavigationRuleEnabled(FilterRule rule, boolean enabled) {
+        String key = ruleKeySuffix(rule);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean(KEY_NAVIGATION_RULE_ENABLED + key, enabled);
+
+        boolean displaced = false;
+        if (enabled && rule.packageName != null) {
+            for (FilterRule other : getNavigationRules()) {
+                String otherKey = ruleKeySuffix(other);
+                if (otherKey.equals(key) || !rule.packageName.equals(other.packageName)) {
+                    continue;
+                }
+                // Read from prefs rather than the rule's enabled flag: that one is already
+                // masked by the package switch, so a rule under a disabled app would look off
+                // and be silently left on, to surface again when the app was switched back on.
+                if (isNavigationRuleEnabled(other)) {
+                    editor.putBoolean(KEY_NAVIGATION_RULE_ENABLED + otherKey, false);
+                    displaced = true;
+                }
+            }
+        }
+
+        editor.apply();
+        return displaced;
     }
 
     /**

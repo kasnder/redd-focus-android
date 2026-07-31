@@ -80,6 +80,29 @@ public class AutoNavigator {
     }
 
     /**
+     * Packages holding more than one enabled rule, which callers are expected to prevent.
+     *
+     * <p>{@link #ruleFor} resolves a package to a single rule, so any extras are dead weight
+     * that nonetheless appear switched on wherever rules are listed. Exposed so the service can
+     * say so out loud rather than leaving a rule that will never fire looking identical to one
+     * that will.
+     */
+    public List<String> packagesWithSurplusRules() {
+        List<String> surplus = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+        for (FilterRule rule : rules) {
+            if (seen.contains(rule.packageName)) {
+                if (!surplus.contains(rule.packageName)) {
+                    surplus.add(rule.packageName);
+                }
+            } else {
+                seen.add(rule.packageName);
+            }
+        }
+        return surplus;
+    }
+
+    /**
      * Whether the current visit needs foreground-change observation beyond the target packages.
      *
      * <p>The service normally filters event delivery to enabled rule packages. While the user

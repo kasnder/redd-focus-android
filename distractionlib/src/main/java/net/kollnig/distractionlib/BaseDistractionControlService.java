@@ -211,6 +211,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             rules.addAll(loadedRules);
         }
         autoNavigator.setRules(loadNavigationRules());
+        for (String pkg : autoNavigator.packagesWithSurplusRules()) {
+            // Storage is meant to keep this to one. If it ever does not, the extras are inert
+            // while still appearing enabled, which is the exact silent wrongness the limit was
+            // introduced to remove -- so it is stated rather than tolerated.
+            Log.w(getLogTag(), "More than one navigation rule enabled for " + pkg
+                    + "; only the first will run");
+        }
         clearAllOverlays();
         updatePauseNotificationForCurrentPackage();
         configureAccessibilityService(false);

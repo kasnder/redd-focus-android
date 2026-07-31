@@ -64,6 +64,7 @@
     <string name="not_installed">Not installed</string>
     <string name="no_rules_active">No rules active</string>
     <string name="header_opens_on_launch">Opens on launch</string>
+    <string name="navigation_rule_replaced">Each app can open on one screen only, so the previous choice was turned off.</string>
     <string name="header_combined">%1$s · %2$s</string>
     <string name="active_rule_fraction">%1$d of %2$d active</string>
     <string name="rule_group_feed">Feed</string>

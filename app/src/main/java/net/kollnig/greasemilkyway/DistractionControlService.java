@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 
@@ -202,9 +203,8 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     /**
-     * Stores a picker-built navigation rule and switches it on. Unlike a blocking rule this
-     * does not touch {@code setPackageDisabled}: navigation is its own opt-in, and enabling it
-     * must not quietly start hiding things in that app as well.
+     * Stores a picker-built navigation rule and switches it on, replacing whatever the app
+     * opened on before -- only one navigation rule per app can run.
      */
     private void saveAndApplyPickerNavigationRule(String ruleString) {
         FilterRuleParser parser = new FilterRuleParser();
@@ -219,7 +219,11 @@ public class DistractionControlService extends BaseDistractionControlService {
         if (!config.hasNavigationRuleLike(rule)) {
             config.addCustomNavigationRule(ruleString);
         }
-        config.setNavigationRuleEnabled(rule, true);
+        // Picking a new screen for an app replaces whatever it opened on before. Said out loud,
+        // because otherwise the old rule dies quietly and reappears as "it stopped working".
+        if (config.setNavigationRuleEnabled(rule, true)) {
+            Toast.makeText(this, R.string.navigation_rule_replaced, Toast.LENGTH_LONG).show();
+        }
         // Navigation rules obey the app switch, so turning one on has to turn that on as well
         // or the new rule would arrive already overridden.
         config.setPackageDisabled(rule.packageName, false);
