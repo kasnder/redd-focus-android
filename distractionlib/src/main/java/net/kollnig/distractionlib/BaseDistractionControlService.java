@@ -376,7 +376,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         try {
             root = getRootInActiveWindow();
             if (root != null && root.getPackageName() != null) {
+                boolean observedAllBefore = observesAllPackages();
                 autoNavigator.adoptForegroundPackage(root.getPackageName().toString());
+                if (observedAllBefore != observesAllPackages()) {
+                    configureAccessibilityService(sentinelPackagesActive);
+                }
             }
         } catch (Exception e) {
             Log.e(getLogTag(), "Error reading the foreground app at startup", e);
@@ -399,7 +403,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 || packageName.equals(SYSTEM_UI_PACKAGE)) {
             return;
         }
+        boolean observedAllBefore = observesAllPackages();
         boolean armed = autoNavigator.onForegroundPackage(packageName, SystemClock.uptimeMillis());
+        if (observedAllBefore != observesAllPackages()) {
+            configureAccessibilityService(sentinelPackagesActive);
+        }
         Log.d(getLogTag(), "Foreground package: " + packageName + (armed ? " (armed)" : ""));
         if (armed) {
             ui.removeCallbacks(navigationAttempt);
@@ -756,10 +764,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             // at 0 with no accessibility events left to reveal the problem.
             boolean suppressEvents = packages.isEmpty() || !isScreenInteractive();
             info.eventTypes = suppressEvents ? 0 : ACTIVE_EVENT_TYPES;
-            // While overlays are attached, temporarily observe all packages so
-            // any foreground transition can clear them. The stricter target-app
-            // filter is restored as soon as overlays are gone.
-            info.packageNames = suppressEvents || includeSentinels
+            // While overlays are attached, or while the user is inside a navigation target,
+            // temporarily observe all packages. The former lets any foreground transition clear
+            // overlays; the latter records departures to unrelated apps so returning to the
+            // target counts as a new visit. The stricter target-app filter is restored as soon
+            // as neither reason remains.
+            info.packageNames = suppressEvents || observesAllPackages()
                     ? null
                     : packages.toArray(new String[0]);
             setServiceInfo(info);
@@ -774,6 +784,10 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private boolean isScreenInteractive() {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         return pm == null || pm.isInteractive();
+    }
+
+    private boolean observesAllPackages() {
+        return sentinelPackagesActive || autoNavigator.isForegroundNavigationTarget();
     }
 
     private String getLauncherPackage() {

@@ -67,6 +67,25 @@ public class AutoNavigatorTest {
     }
 
     @Test
+    public void keepsObservingForegroundChangesUntilLeavingANavigationTarget() {
+        navigator.onForegroundPackage(IG, 0);
+        navigator.disarm();
+
+        assertTrue(navigator.isForegroundNavigationTarget());
+
+        navigator.onForegroundPackage("com.android.chrome", 1000);
+
+        assertFalse(navigator.isForegroundNavigationTarget());
+    }
+
+    @Test
+    public void adoptedNavigationTargetStillNeedsDepartureObservation() {
+        navigator.adoptForegroundPackage(IG);
+
+        assertTrue(navigator.isForegroundNavigationTarget());
+    }
+
+    @Test
     public void switchingBetweenTwoTargetAppsArmsTheSecond() {
         navigator.onForegroundPackage(IG, 0);
         assertTrue(navigator.onForegroundPackage(WA, 500));

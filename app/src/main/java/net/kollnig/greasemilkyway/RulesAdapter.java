@@ -293,35 +293,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     return;
                 }
 
-                config.setPackageDisabled(packageName, false);
-                config.setPackagePausedUntil(packageName, 0);
-
-                // Restore each rule's saved enabled state from SharedPreferences.
-                // In-memory state was set to false for UI during disable, but prefs were
-                // intentionally preserved, so this correctly restores individual selections.
-                // If no rule has ever been explicitly saved (first-time enable), enable all.
-                boolean anyRuleSavedEnabled = false;
-                for (FilterRule rule : currentRules) {
-                    if (rule.packageName.equals(packageName) && config.isRuleEnabled(rule)) {
-                        anyRuleSavedEnabled = true;
-                        break;
-                    }
-                }
-                for (FilterRule rule : currentRules) {
-                    if (rule.packageName.equals(packageName)) {
-                        rule.isPaused = false;
-                        rule.pausedUntil = 0;
-                        if (anyRuleSavedEnabled) {
-                            // Restore the individually saved state
-                            rule.enabled = config.isRuleEnabled(rule);
-                        } else {
-                            // First-time enable: turn everything on
-                            rule.enabled = true;
-                            config.setRuleEnabled(rule, true);
-                            config.setRulePausedUntil(rule, 0);
-                        }
-                    }
-                }
+                config.enablePackageRules(packageName, currentRules);
 
                 // Rebuild to show/hide rules
                 rebuildItemsList();

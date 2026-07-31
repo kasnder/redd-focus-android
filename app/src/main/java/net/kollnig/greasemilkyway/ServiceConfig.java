@@ -391,6 +391,60 @@ public class ServiceConfig {
                 .apply();
     }
 
+    /**
+     * Enables a package and restores the per-rule state shown underneath it.
+     *
+     * <p>Blocking and navigation rules share a display list but have independent preference
+     * namespaces. Keeping the restore here prevents the app switch from accidentally reading
+     * a navigation rule through the blocking key (or writing its first enabled state there).
+     */
+    public void enablePackageRules(String packageName, List<FilterRule> packageRules) {
+        setPackageDisabled(packageName, false);
+        setPackagePausedUntil(packageName, 0);
+
+        boolean hasSavedState = false;
+        for (FilterRule rule : packageRules) {
+            if (packageName.equals(rule.packageName) && hasSavedEnabledState(rule)) {
+                hasSavedState = true;
+                break;
+            }
+        }
+
+        for (FilterRule rule : packageRules) {
+            if (!packageName.equals(rule.packageName)) {
+                continue;
+            }
+            rule.isPaused = false;
+            rule.pausedUntil = 0;
+            if (hasSavedState) {
+                rule.enabled = isSavedEnabled(rule);
+            } else {
+                rule.enabled = true;
+                setSavedEnabled(rule, true);
+            }
+            if (!rule.isNavigation) {
+                setRulePausedUntil(rule, 0);
+            }
+        }
+    }
+
+    private boolean hasSavedEnabledState(FilterRule rule) {
+        return prefs.contains((rule.isNavigation ? KEY_NAVIGATION_RULE_ENABLED : KEY_RULE_ENABLED)
+                + ruleKeySuffix(rule));
+    }
+
+    private boolean isSavedEnabled(FilterRule rule) {
+        return rule.isNavigation ? isNavigationRuleEnabled(rule) : isRuleEnabled(rule);
+    }
+
+    private void setSavedEnabled(FilterRule rule, boolean enabled) {
+        if (rule.isNavigation) {
+            setNavigationRuleEnabled(rule, enabled);
+        } else {
+            setRuleEnabled(rule, enabled);
+        }
+    }
+
     public int getFrictionWordCount() {
         return prefs.getInt(KEY_FRICTION_WORD_COUNT, 0);
     }
