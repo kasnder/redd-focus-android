@@ -261,4 +261,22 @@ public class AutoNavigatorTest {
             // caller mutate it would silently change which packages are observed.
         }
     }
+
+    /**
+     * Storage enforces one rule per app, but the service has no way to check that itself. If
+     * the invariant ever broke, the extras would be inert while still appearing switched on --
+     * so it is reported rather than silently tolerated.
+     */
+    @Test
+    public void surplusRulesForOneAppAreReported() {
+        navigator.setRules(Arrays.asList(
+                rule(IG, "id/direct_tab"), rule(IG, "id/other"), rule(WA, "id/favourites")));
+
+        assertEquals(Collections.singletonList(IG), navigator.packagesWithSurplusRules());
+    }
+
+    @Test
+    public void oneRulePerAppReportsNoSurplus() {
+        assertTrue(navigator.packagesWithSurplusRules().isEmpty());
+    }
 }

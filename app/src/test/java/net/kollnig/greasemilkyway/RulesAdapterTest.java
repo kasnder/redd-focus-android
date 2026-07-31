@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -148,8 +149,14 @@ public class RulesAdapterTest {
         assertTrue(RulesAdapter.isNavigationRow(rows.get(1)));
     }
 
+    /**
+     * Merging exists so one switch can back the several rules it takes to hide one thing.
+     * Opening a screen is a single click, and only one navigation rule per app runs, so a
+     * merged navigation row would offer to enable rules that cannot all be on at once -- and
+     * its own parts would switch each other off.
+     */
     @Test
-    public void navigationRulesSharingACommentStillMergeWithEachOther() {
+    public void navigationRulesNeverMergeEvenWhenTheyShareAComment() {
         List<FilterRule> rules = parse(
                 "com.example.app##viewId=com.example.app:id/a##comment=Open inbox",
                 "com.example.app##viewId=com.example.app:id/b##comment=Open inbox");
@@ -157,6 +164,48 @@ public class RulesAdapterTest {
             rule.isNavigation = true;
         }
 
-        assertEquals(1, RulesAdapter.mergeRules(rules).size());
+        assertEquals(2, RulesAdapter.mergeRules(rules).size());
+    }
+
+    /**
+     * The list renders from the rule objects and carries their state forward rather than
+     * re-reading preferences, so a rule switched off only in storage would keep its switch
+     * visibly on and keep being counted as active -- the exact claim the one-per-app limit
+     * exists to stop. Caught on device: prefs said off, the list said "2 active".
+     */
+    @Test
+    public void displacedNavigationRuleIsMarkedDisabledInMemory() {
+        List<FilterRule> rules = parse(
+                "com.example.app##viewId=com.example.app:id/a##comment=Open A",
+                "com.example.app##viewId=com.example.app:id/b##comment=Open B");
+        for (FilterRule rule : rules) {
+            rule.isNavigation = true;
+            rule.enabled = true;
+        }
+
+        RulesAdapter.markOtherNavigationRulesDisabled(
+                rules, Collections.singletonList(rules.get(1)));
+
+        assertFalse(rules.get(0).enabled);
+        assertTrue("the rule just switched on must stay on", rules.get(1).enabled);
+    }
+
+    @Test
+    public void displacingLeavesOtherAppsAndBlockingRulesAlone() {
+        List<FilterRule> rules = parse(
+                "com.other.app##viewId=com.other.app:id/a##comment=Other app",
+                "com.example.app##path=A[*]##comment=Hide something",
+                "com.example.app##viewId=com.example.app:id/b##comment=Open B");
+        rules.get(0).isNavigation = true;
+        rules.get(2).isNavigation = true;
+        for (FilterRule rule : rules) {
+            rule.enabled = true;
+        }
+
+        RulesAdapter.markOtherNavigationRulesDisabled(
+                rules, Collections.singletonList(rules.get(2)));
+
+        assertTrue("a different app keeps its navigation rule", rules.get(0).enabled);
+        assertTrue("blocking rules are a separate concern", rules.get(1).enabled);
     }
 }

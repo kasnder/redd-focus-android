@@ -631,16 +631,26 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
      * element -- so the target store is chosen by the rule, never by its key.
      */
     private void setRowEnabled(List<FilterRule> parts, boolean enabled) {
+        boolean displaced = false;
         for (FilterRule part : parts) {
             part.enabled = enabled;
             if (part.isNavigation) {
-                config.setNavigationRuleEnabled(part, enabled);
+                displaced |= config.setNavigationRuleEnabled(part, enabled);
             } else {
                 part.isPaused = false;
                 part.pausedUntil = 0;
                 config.setRuleEnabled(part, enabled);
                 config.setRulePausedUntil(part, 0);
             }
+        }
+        if (displaced) {
+            // Storage has switched the other rule off; the list renders from these objects, and
+            // rebuildItemsList carries their current state forward rather than re-reading, so
+            // without this the displaced switch stays visibly on and the section keeps counting
+            // it. Only the rule that moved is touched, so nothing else is disturbed.
+            markOtherNavigationRulesDisabled(currentRules, parts);
+            // The switch flipping on its own reads as a glitch unless something says why.
+            Toast.makeText(context, R.string.navigation_rule_replaced, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -652,6 +662,28 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 config.removeCustomRule(part.ruleString);
             }
             currentRules.remove(part);
+        }
+    }
+
+    /**
+     * Mirrors, in memory, the switching-off that storage has just done to the other navigation
+     * rules for an app.
+     *
+     * <p>The list renders from these objects and {@link #rebuildItemsList} carries their current
+     * state forward rather than re-reading it, so a rule displaced only in preferences keeps its
+     * switch visibly on and keeps being counted as active -- the very thing this limit exists to
+     * stop. Rules for other apps, and blocking rules, are left alone.
+     */
+    static void markOtherNavigationRulesDisabled(List<FilterRule> rules, List<FilterRule> kept) {
+        if (kept.isEmpty()) {
+            return;
+        }
+        String packageName = kept.get(0).packageName;
+        for (FilterRule rule : rules) {
+            if (rule.isNavigation && !kept.contains(rule)
+                    && rule.packageName.equals(packageName)) {
+                rule.enabled = false;
+            }
         }
     }
 
@@ -696,13 +728,17 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
         Map<String, List<FilterRule>> byComment = new java.util.LinkedHashMap<>();
         for (FilterRule rule : rules) {
             String comment = rule.description == null ? "" : rule.description.trim();
-            if (comment.isEmpty()) {
+            // Navigation rules never merge. Merging exists so that one switch can back the
+            // several rules it takes to hide one thing; opening a screen is a single click, and
+            // only one navigation rule per app runs anyway, so a merged row would promise to
+            // enable rules that could not all be on at once.
+            if (comment.isEmpty() || rule.isNavigation) {
                 List<FilterRule> row = new ArrayList<>();
                 row.add(rule);
                 rows.add(row);
                 continue;
             }
-            String key = rule.isCustom + " " + rule.isNavigation + " " + comment;
+            String key = rule.isCustom + " " + comment;
             List<FilterRule> row = byComment.get(key);
             if (row == null) {
                 row = new ArrayList<>();

@@ -672,6 +672,88 @@ public class ServiceConfigTest {
         assertEquals(bundled + 1, config.getNavigationRules().size());
     }
 
+    // --- One navigation rule per app ---
+
+    @Test
+    public void enablingANavigationRuleSwitchesOffTheAppsPreviousOne() {
+        FilterRule first = createRule("com.example.app##viewId=com.example.app:id/inbox");
+        FilterRule second = createRule("com.example.app##viewId=com.example.app:id/favourites");
+        config.addCustomNavigationRule(first.ruleString);
+        config.addCustomNavigationRule(second.ruleString);
+
+        config.setNavigationRuleEnabled(first, true);
+        boolean displaced = config.setNavigationRuleEnabled(second, true);
+
+        assertTrue("the caller needs to know, to explain the switch that moved", displaced);
+        assertTrue(config.isNavigationRuleEnabled(second));
+        assertFalse("only one navigation rule per app can run",
+                config.isNavigationRuleEnabled(first));
+    }
+
+    @Test
+    public void enablingANavigationRuleLeavesOtherAppsAlone() {
+        FilterRule whatsapp = createRule("com.whatsapp##viewId=com.whatsapp:id/inbox");
+        FilterRule instagram = createRule("com.instagram.android##viewId=x:id/direct_tab");
+        config.addCustomNavigationRule(whatsapp.ruleString);
+        config.addCustomNavigationRule(instagram.ruleString);
+
+        config.setNavigationRuleEnabled(whatsapp, true);
+        boolean displaced = config.setNavigationRuleEnabled(instagram, true);
+
+        assertFalse(displaced);
+        assertTrue(config.isNavigationRuleEnabled(whatsapp));
+        assertTrue(config.isNavigationRuleEnabled(instagram));
+    }
+
+    @Test
+    public void switchingANavigationRuleOffLeavesTheRestUntouched() {
+        FilterRule first = createRule("com.example.app##viewId=com.example.app:id/inbox");
+        FilterRule second = createRule("com.example.app##viewId=com.example.app:id/favourites");
+        config.addCustomNavigationRule(first.ruleString);
+        config.addCustomNavigationRule(second.ruleString);
+        config.setNavigationRuleEnabled(first, true);
+
+        assertFalse(config.setNavigationRuleEnabled(second, false));
+        assertTrue(config.isNavigationRuleEnabled(first));
+    }
+
+    /**
+     * A rule under a switched-off app reads as disabled, because the package switch masks it.
+     * Skipping it here would leave it stored as on, to surface again the moment the app was
+     * switched back on -- two enabled rules for one app, which is what this prevents.
+     */
+    @Test
+    public void aRuleMaskedByTheAppSwitchIsStillDisplaced() {
+        FilterRule first = createRule("com.example.app##viewId=com.example.app:id/inbox");
+        FilterRule second = createRule("com.example.app##viewId=com.example.app:id/favourites");
+        config.addCustomNavigationRule(first.ruleString);
+        config.addCustomNavigationRule(second.ruleString);
+        config.setNavigationRuleEnabled(first, true);
+        config.setPackageDisabled("com.example.app", true);
+
+        assertTrue(config.setNavigationRuleEnabled(second, true));
+
+        config.setPackageDisabled("com.example.app", false);
+        assertFalse(config.isNavigationRuleEnabled(first));
+    }
+
+    @Test
+    public void atMostOneNavigationRulePerAppIsEverEnabled() {
+        FilterRule bundled = config.getNavigationRules().get(0);
+        FilterRule custom = createRule(bundled.packageName + "##viewId=x:id/other");
+        config.addCustomNavigationRule(custom.ruleString);
+
+        config.setNavigationRuleEnabled(bundled, true);
+        config.setNavigationRuleEnabled(custom, true);
+        config.setPackageDisabled(bundled.packageName, false);
+
+        int enabled = 0;
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (rule.packageName.equals(bundled.packageName) && rule.enabled) enabled++;
+        }
+        assertEquals(1, enabled);
+    }
+
     @Test
     public void everyNavigationRuleHasATargetAndALabel() {
         for (FilterRule rule : config.getNavigationRules()) {

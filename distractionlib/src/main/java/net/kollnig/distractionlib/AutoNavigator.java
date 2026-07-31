@@ -79,6 +79,29 @@ public class AutoNavigator {
         return !rules.isEmpty();
     }
 
+    /**
+     * Packages holding more than one enabled rule, which callers are expected to prevent.
+     *
+     * <p>{@link #ruleFor} resolves a package to a single rule, so any extras are dead weight
+     * that nonetheless appear switched on wherever rules are listed. Exposed so the service can
+     * say so out loud rather than leaving a rule that will never fire looking identical to one
+     * that will.
+     */
+    public List<String> packagesWithSurplusRules() {
+        List<String> surplus = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+        for (FilterRule rule : rules) {
+            if (seen.contains(rule.packageName)) {
+                if (!surplus.contains(rule.packageName)) {
+                    surplus.add(rule.packageName);
+                }
+            } else {
+                seen.add(rule.packageName);
+            }
+        }
+        return surplus;
+    }
+
     /** The navigation rule for a package, or null if that package has none. */
     public FilterRule ruleFor(CharSequence packageName) {
         if (packageName == null) {
