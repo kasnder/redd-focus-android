@@ -12,6 +12,16 @@ public class FilterRule {
     public final String packageName;
     public final String targetViewId;
     public final Set<String> contentDescriptions;
+    /**
+     * How {@link #contentDescriptions} are compared against a node's description.
+     *
+     * <p>A content description exists to be read aloud, so it carries live status: badge counts
+     * and selected states are appended to the label ("Unread filter, 25, unselected",
+     * "someone's story, 3 of 27, Unseen."). Matching such a description exactly means the rule
+     * stops working the moment the count changes. That is a property of the platform, not of
+     * any one app, so the choice is offered on every rule rather than special-cased anywhere.
+     */
+    public final DescriptionMatch descriptionMatch;
     public final String targetClassName;
     public final String targetText;
     public final String targetPath;
@@ -63,6 +73,68 @@ public class FilterRule {
                 ruleString, blockTouches);
     }
 
+    /** How a rule's content descriptions are compared against a node's. */
+    public enum DescriptionMatch {
+        /** The description must be exactly the stored value. The default. */
+        EXACT,
+        /**
+         * The description must begin with the stored value. Deliberately a plain prefix with no
+         * knowledge of how status is appended: encoding a separator convention in the matcher
+         * would be a rule the user cannot see from reading their own rule text. The picker
+         * suggests where to cut, and checks the result is unambiguous before offering it.
+         */
+        PREFIX,
+        /**
+         * The description must contain the stored value anywhere. The loosest option and the
+         * only one the picker never generates -- it is for hand-written rules whose stable part
+         * sits at the end ("3 unread messages"), where the author can see what they are doing.
+         */
+        SUBSTRING;
+
+        static DescriptionMatch parse(String value) {
+            if (value == null) return null;
+            switch (value.trim().toLowerCase(java.util.Locale.ROOT)) {
+                case "exact":
+                    return EXACT;
+                case "prefix":
+                    return PREFIX;
+                case "substring":
+                    return SUBSTRING;
+                default:
+                    return null;
+            }
+        }
+
+        String ruleValue() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /**
+     * Whether a node's description satisfies this rule, under whichever comparison the rule
+     * asked for. Shared by every match site so the three of them cannot drift apart.
+     */
+    public boolean matchesDescription(CharSequence candidate) {
+        if (candidate == null || contentDescriptions == null || contentDescriptions.isEmpty()) {
+            return false;
+        }
+        String value = candidate.toString();
+        for (String target : contentDescriptions) {
+            switch (descriptionMatch) {
+                case PREFIX:
+                    if (value.startsWith(target)) return true;
+                    break;
+                case SUBSTRING:
+                    if (value.contains(target)) return true;
+                    break;
+                default:
+                    if (value.equals(target)) return true;
+                    break;
+            }
+        }
+        return false;
+    }
+
     /**
      * Marks which screen a rule belongs to, using structure rather than any visible label, so
      * the same rule works whatever language the app is displayed in.
@@ -106,6 +178,18 @@ public class FilterRule {
                       String path, String childPath, int minThumbnailWidthDp,
                       ScreenCondition screenCondition, int color, String description,
                       String category, String ruleString, boolean blockTouches) {
+        this(pkg, viewId, descs, DescriptionMatch.EXACT, className, text, path, childPath,
+                minThumbnailWidthDp, screenCondition, color, description, category, ruleString,
+                blockTouches);
+    }
+
+    public FilterRule(String pkg, String viewId, Set<String> descs,
+                      DescriptionMatch descriptionMatch, String className, String text,
+                      String path, String childPath, int minThumbnailWidthDp,
+                      ScreenCondition screenCondition, int color, String description,
+                      String category, String ruleString, boolean blockTouches) {
+        this.descriptionMatch =
+                descriptionMatch == null ? DescriptionMatch.EXACT : descriptionMatch;
         this.packageName = pkg;
         this.targetViewId = viewId;
         this.contentDescriptions = descs;
@@ -151,6 +235,12 @@ public class FilterRule {
      * are matching fields too -- two rules that share a viewId but differ in one of these
      * select different elements -- so they go into the identity alongside the rest, rather
      * than being left out as if they were presentational.
+     *
+     * <p>{@link #descriptionMatch} is behavioural in the same way, but it is appended at the
+     * end and only when it is not the default. Adding a field in the middle would change the
+     * identity of every rule ever written and orphan the saved state of all of them; this way
+     * a rule that does not use the feature hashes exactly as it did before it existed. Any
+     * future addition here must follow the same shape.
      */
     public String identity() {
         List<String> descs = contentDescriptions == null
@@ -158,7 +248,7 @@ public class FilterRule {
                 : new ArrayList<>(contentDescriptions);
         Collections.sort(descs);
 
-        return new StringBuilder()
+        StringBuilder identity = new StringBuilder()
                 .append(packageName).append('\n')
                 .append(targetViewId == null ? "" : targetViewId).append('\n')
                 .append(String.join("|", descs)).append('\n')
@@ -168,8 +258,12 @@ public class FilterRule {
                 .append(targetChildPath == null ? "" : targetChildPath).append('\n')
                 .append(minThumbnailWidthDp).append('\n')
                 .append(screenCondition == null ? "" : screenCondition.identity()).append('\n')
-                .append(blockTouches)
-                .toString();
+                .append(blockTouches);
+
+        if (descriptionMatch != DescriptionMatch.EXACT) {
+            identity.append('\n').append(descriptionMatch.name());
+        }
+        return identity.toString();
     }
 
     @Override

@@ -85,6 +85,8 @@ public class FilterRuleParser {
             int color = Color.WHITE;
             boolean blockTouches = true;
             boolean malformedScreenMarker = false;
+            FilterRule.DescriptionMatch descriptionMatch = FilterRule.DescriptionMatch.EXACT;
+            boolean malformedDescriptionMatch = false;
 
             for (int i = 1; i < parts.length; i++) {
                 String part = parts[i];
@@ -164,6 +166,17 @@ public class FilterRuleParser {
                         }
                         break;
                     }
+                    case "descMatch": {
+                        FilterRule.DescriptionMatch parsed =
+                                FilterRule.DescriptionMatch.parse(value);
+                        if (parsed == null) {
+                            Log.e(TAG, "Invalid descMatch value: " + value);
+                            malformedDescriptionMatch = true;
+                        } else {
+                            descriptionMatch = parsed;
+                        }
+                        break;
+                    }
                     case "comment":
                         currentComment = value;
                         break;
@@ -171,6 +184,14 @@ public class FilterRuleParser {
                         category = value;
                         break;
                 }
+            }
+
+            if (malformedDescriptionMatch) {
+                // An unreadable comparison mode would silently fall back to exact matching,
+                // which is a different rule from the one that was written. Dropping it is the
+                // same fail-closed choice made for screen markers below.
+                Log.e(TAG, "Dropping rule with malformed descMatch: " + line);
+                continue;
             }
 
             if (malformedScreenMarker) {
@@ -187,9 +208,9 @@ public class FilterRuleParser {
                             : new FilterRule.ScreenCondition(requiredViewId, selectedViewId,
                                     selectedChildPath);
 
-            rules.add(new FilterRule(packageName, targetViewId, descriptions, targetClassName,
-                    targetText, targetPath, targetChildPath, minThumbnailWidthDp, screenCondition,
-                    color, currentComment, category, line, blockTouches));
+            rules.add(new FilterRule(packageName, targetViewId, descriptions, descriptionMatch,
+                    targetClassName, targetText, targetPath, targetChildPath, minThumbnailWidthDp,
+                    screenCondition, color, currentComment, category, line, blockTouches));
             currentComment = null;
         }
 

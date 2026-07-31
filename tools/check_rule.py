@@ -48,6 +48,7 @@ def _read_java_int_constant(java_file, constant_name, default):
     return int(match.group(1)) if match else default
 
 
+DESCRIPTION_MATCH_MODES = ('exact', 'prefix', 'substring')
 DEFAULT_MIN_THUMBNAIL_WIDTH_DP = _read_java_int_constant(
     _DISTRACTIONLIB_JAVA / 'FilterRuleParser.java', 'DEFAULT_MIN_THUMBNAIL_WIDTH_DP', 100)
 MIN_ACCEPTED_THUMBNAIL_WIDTH_DP = _read_java_int_constant(
@@ -64,7 +65,8 @@ def parse_rule(line):
     if len(parts) < 2:
         raise ValueError('a rule needs a package and at least one key: ' + line)
 
-    rule = {'package': parts[0].strip(), 'minThumbnailWidthDp': 0, 'malformedScreenMarker': False}
+    rule = {'package': parts[0].strip(), 'minThumbnailWidthDp': 0, 'malformedScreenMarker': False,
+            'malformedDescriptionMatch': False}
     for part in parts[1:]:
         if '=' not in part:
             continue
@@ -85,6 +87,11 @@ def parse_rule(line):
                 rule['selectedViewId'], rule['selectedChildPath'] = value, None
             else:
                 rule['malformedScreenMarker'] = True
+        elif key == 'descMatch':
+            if value.lower() in DESCRIPTION_MATCH_MODES:
+                rule[key] = value.lower()
+            else:
+                rule['malformedDescriptionMatch'] = True
         elif key == 'requiresViewId':
             if value:
                 rule['requiredViewId'] = value
@@ -233,6 +240,11 @@ def check(dump_path, rule, density, window_index):
     root = windows[window_index]
 
     print('%s:' % dump_path)
+    if rule['malformedDescriptionMatch']:
+        # Mirrors FilterRuleParser: an unreadable comparison mode would silently fall back to
+        # exact matching, which is a different rule from the one that was written.
+        print('  DROPPED: malformed descMatch value, rule never loads')
+        return 0
     if rule['malformedScreenMarker']:
         # Mirrors FilterRuleParser: a screen marker that cannot be read is a broken guardrail,
         # so the app drops the whole rule at load time rather than applying it without it.

@@ -484,7 +484,34 @@ public class ElementPickerOverlay {
 
         String generatedRule = ElementPickerRuleGenerator.generateNavigationRule(
                 node, currentRootNode, currentPackageName, null);
+
+        if (!isUnambiguous(generatedRule)) {
+            // Matching a description loosely is only safe while it still names one element.
+            Toast.makeText(service, R.string.picker_open_ambiguous, Toast.LENGTH_LONG).show();
+            return;
+        }
+
         showConfirmationOverlay(node, selector.description, generatedRule, Mode.NAVIGATE);
+    }
+
+    /**
+     * Whether a description-based navigation rule picks out exactly one element on the screen
+     * it was built from. View-ID and anchored-path rules address a node directly and are left
+     * alone; only a description can be widened by the comparison mode into naming several.
+     */
+    private boolean isUnambiguous(String generatedRule) {
+        if (generatedRule == null || currentRootNode == null) {
+            return false;
+        }
+        List<FilterRule> parsed = new FilterRuleParser().parseRules(new String[]{generatedRule});
+        if (parsed.isEmpty()) {
+            return false;
+        }
+        FilterRule rule = parsed.get(0);
+        if (rule.contentDescriptions == null || rule.contentDescriptions.isEmpty()) {
+            return true;
+        }
+        return ElementPickerRuleGenerator.countDescriptionMatches(currentRootNode, rule) == 1;
     }
 
     private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc,
