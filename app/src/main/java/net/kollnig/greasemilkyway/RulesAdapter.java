@@ -132,14 +132,23 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             // with the number of switches shown underneath it.
             List<List<FilterRule>> packageRows = mergeRules(packageRules);
 
-            // Count only enabled rules
+            // Counted apart, because the header says how many elements are hidden and a
+            // navigation rule hides nothing -- it opens a screen.
             int enabledCount = 0;
+            int enabledNavigationCount = 0;
+            int hidingRows = 0;
             for (List<FilterRule> row : packageRows) {
-                if (isRowEnabled(row)) enabledCount++;
+                boolean navigation = isNavigationRow(row);
+                if (!navigation) hidingRows++;
+                if (isRowEnabled(row)) {
+                    if (navigation) enabledNavigationCount++;
+                    else enabledCount++;
+                }
             }
 
             // Add app header
-            items.add(new AppHeaderItem(packageName, enabledCount, packageRows.size()));
+            items.add(new AppHeaderItem(packageName, enabledCount, hidingRows,
+                    enabledNavigationCount));
 
             // Show rules only when the package is enabled (not disabled)
             boolean isPackageEnabled = !config.isPackageDisabled(packageName);
@@ -222,9 +231,18 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             if (!finalIsInstalled) {
                 viewHolder.packageName.setText(context.getString(R.string.not_installed));
             } else if (isAppEnabled) {
+                String opensOnLaunch = appItem.navigationCount > 0
+                        ? context.getString(R.string.header_opens_on_launch)
+                        : null;
                 if (appItem.ruleCount > 0) {
-                    viewHolder.packageName.setText(context.getResources().getQuantityString(
-                            R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount));
+                    String hidden = context.getResources().getQuantityString(
+                            R.plurals.hides_elements, appItem.ruleCount, appItem.ruleCount);
+                    viewHolder.packageName.setText(opensOnLaunch == null
+                            ? hidden
+                            : context.getString(R.string.header_combined, hidden, opensOnLaunch));
+                } else if (opensOnLaunch != null) {
+                    // Nothing hidden, but the app is not idle either.
+                    viewHolder.packageName.setText(opensOnLaunch);
                 } else if (appItem.totalRuleCount > 0) {
                     viewHolder.packageName.setText(context.getString(R.string.no_rules_active));
                 } else {
@@ -775,13 +793,17 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     // Item classes for different view types
     private static class AppHeaderItem {
         final String packageName;
+        /** Enabled rows that hide something. Navigation rows are counted separately. */
         final int ruleCount;
         final int totalRuleCount;
+        final int navigationCount;
 
-        AppHeaderItem(String packageName, int ruleCount, int totalRuleCount) {
+        AppHeaderItem(String packageName, int ruleCount, int totalRuleCount,
+                      int navigationCount) {
             this.packageName = packageName;
             this.ruleCount = ruleCount;
             this.totalRuleCount = totalRuleCount;
+            this.navigationCount = navigationCount;
         }
     }
 

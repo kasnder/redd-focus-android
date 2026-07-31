@@ -413,7 +413,16 @@ public abstract class BaseDistractionControlService extends AccessibilityService
      * the app is still laying out -- so failure here is expected rather than exceptional.
      */
     private void attemptNavigation() {
-        if (!screenOn || !autoNavigator.isArmed(SystemClock.uptimeMillis())) {
+        if (!screenOn) {
+            return;
+        }
+        if (!autoNavigator.isArmed(SystemClock.uptimeMillis())) {
+            // Distinguished in the log because the two give up for opposite reasons: one means
+            // the app never became readable, the other that it did and the element was not on
+            // it. Silence here is what makes a failure impossible to tell from doing nothing.
+            Log.i(getLogTag(), autoNavigator.hasAppeared()
+                    ? "Auto-navigation gave up: target not found while the app was on screen"
+                    : "Auto-navigation gave up: the app never reached the foreground");
             return;
         }
         // Blocking is suspended while the element picker is up, and a jump to another screen
@@ -437,11 +446,15 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             if (root == null) {
                 return false;
             }
-            FilterRule rule = autoNavigator.armedRuleFor(
-                    root.getPackageName(), SystemClock.uptimeMillis());
+            long now = SystemClock.uptimeMillis();
+            FilterRule rule = autoNavigator.armedRuleFor(root.getPackageName(), now);
             if (rule == null) {
                 return false;
             }
+            // The armed app owns the active window, so it is on screen and readable. Until
+            // this point nothing could have been found, and that wait must not count against
+            // the time allowed for finding the element.
+            autoNavigator.noteAppeared(now);
             AccessibilityNodeInfo target = findNavigationTarget(root, rule);
             if (target == null) {
                 return false;
