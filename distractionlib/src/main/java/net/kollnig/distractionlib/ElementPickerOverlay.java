@@ -227,26 +227,41 @@ public class ElementPickerOverlay {
         int pad = dpToPx(12);
         controlBar.setPadding(pad, pad, pad, pad);
 
+        // Two rows, split by what the buttons are for. Seven equally weighted buttons on one
+        // row left about 27dp of text width each on a normal phone, against the ~55dp a word
+        // like "Shallower" needs, so every label wrapped or truncated. Adjusting the selection
+        // and acting on it are also different kinds of decision, and reading as one undivided
+        // strip of buttons was its own source of confusion.
+        LinearLayout selectionRow = new LinearLayout(service);
+        selectionRow.setOrientation(LinearLayout.HORIZONTAL);
+        selectionRow.setGravity(Gravity.CENTER_VERTICAL);
+
         infoText = new TextView(service);
         infoText.setTextColor(textColor);
         infoText.setTextSize(13f);
         infoText.setText(service.getString(R.string.picker_hint));
-        infoText.setPadding(0, 0, 0, dpToPx(8));
-        controlBar.addView(infoText);
+        infoText.setMaxLines(2);
+        infoText.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        selectionRow.addView(infoText, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        // The steppers sit beside the description because they change what it describes.
+        selectionRow.addView(createIconButton(service.getString(R.string.picker_shallower),
+                textColor, v -> cycleShallower()));
+        selectionRow.addView(createIconButton(service.getString(R.string.picker_deeper),
+                textColor, v -> cycleDeeper()));
+        // Kept, because the bar can land on top of the very element being picked.
+        selectionRow.addView(createIconButton(service.getString(R.string.picker_move),
+                textColor, v -> toggleControlBarPosition()));
+        selectionRow.addView(createIconButton(service.getString(R.string.picker_cancel),
+                textColor, v -> dismissPicker()));
+
+        controlBar.addView(selectionRow);
 
         LinearLayout buttonRow = new LinearLayout(service);
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setGravity(Gravity.CENTER);
-
-        Button deeperBtn = createButton(service.getString(R.string.picker_deeper),
-                Color.argb(200, 60, 60, 60), btnTextColor);
-        deeperBtn.setOnClickListener(v -> cycleDeeper());
-        buttonRow.addView(deeperBtn, createButtonParams());
-
-        Button shallowerBtn = createButton(service.getString(R.string.picker_shallower),
-                Color.argb(200, 60, 60, 60), btnTextColor);
-        shallowerBtn.setOnClickListener(v -> cycleShallower());
-        buttonRow.addView(shallowerBtn, createButtonParams());
+        buttonRow.setPadding(0, dpToPx(8), 0, 0);
 
         Button blockBtn = createButton(service.getString(R.string.picker_block),
                 Color.argb(200, 200, 40, 40), btnTextColor);
@@ -262,16 +277,6 @@ public class ElementPickerOverlay {
                 Color.argb(200, 40, 120, 200), btnTextColor);
         openBtn.setOnClickListener(v -> confirmNavigate());
         buttonRow.addView(openBtn, createButtonParams());
-
-        Button moveBtn = createButton(service.getString(R.string.picker_move),
-                Color.argb(200, 100, 100, 100), btnTextColor);
-        moveBtn.setOnClickListener(v -> toggleControlBarPosition());
-        buttonRow.addView(moveBtn, createButtonParams());
-
-        Button cancelBtn = createButton(service.getString(R.string.picker_cancel),
-                Color.argb(200, 100, 100, 100), btnTextColor);
-        cancelBtn.setOnClickListener(v -> dismissPicker());
-        buttonRow.addView(cancelBtn, createButtonParams());
 
         controlBar.addView(buttonRow);
 
@@ -301,6 +306,25 @@ public class ElementPickerOverlay {
             params.gravity = (isAtBottom ? Gravity.BOTTOM : Gravity.TOP) | Gravity.START;
             windowManager.updateViewLayout(controlBar, params);
         }
+    }
+
+    /**
+     * A compact, unpainted button for the selection row. Sized to its glyph rather than sharing
+     * the row's width, so the description beside it keeps everything left over.
+     */
+    private Button createIconButton(String glyph, int textColor, View.OnClickListener onClick) {
+        Button btn = new Button(service);
+        btn.setText(glyph);
+        btn.setTextSize(15f);
+        btn.setAllCaps(false);
+        btn.setBackgroundColor(Color.TRANSPARENT);
+        btn.setTextColor(textColor);
+        int pad = dpToPx(10);
+        btn.setPadding(pad, 0, pad, 0);
+        btn.setMinWidth(0);
+        btn.setMinimumWidth(0);
+        btn.setOnClickListener(onClick);
+        return btn;
     }
 
     private Button createButton(String text, int bgColor, int textColor) {
@@ -484,7 +508,34 @@ public class ElementPickerOverlay {
 
         String generatedRule = ElementPickerRuleGenerator.generateNavigationRule(
                 node, currentRootNode, currentPackageName, null);
+
+        if (!isUnambiguous(generatedRule)) {
+            // Matching a description loosely is only safe while it still names one element.
+            Toast.makeText(service, R.string.picker_open_ambiguous, Toast.LENGTH_LONG).show();
+            return;
+        }
+
         showConfirmationOverlay(node, selector.description, generatedRule, Mode.NAVIGATE);
+    }
+
+    /**
+     * Whether a description-based navigation rule picks out exactly one element on the screen
+     * it was built from. View-ID and anchored-path rules address a node directly and are left
+     * alone; only a description can be widened by the comparison mode into naming several.
+     */
+    private boolean isUnambiguous(String generatedRule) {
+        if (generatedRule == null || currentRootNode == null) {
+            return false;
+        }
+        List<FilterRule> parsed = new FilterRuleParser().parseRules(new String[]{generatedRule});
+        if (parsed.isEmpty()) {
+            return false;
+        }
+        FilterRule rule = parsed.get(0);
+        if (rule.contentDescriptions == null || rule.contentDescriptions.isEmpty()) {
+            return true;
+        }
+        return ElementPickerRuleGenerator.countDescriptionMatches(currentRootNode, rule) == 1;
     }
 
     private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc,
@@ -522,21 +573,26 @@ public class ElementPickerOverlay {
         title.setPadding(0, 0, 0, dpToPx(12));
         card.addView(title);
 
+        // What will actually happen, before anything about how it is matched. The card used to
+        // open with a selector and a raw rule string, which answers a question the user asking
+        // "what does this button do?" was not the one asking.
+        TextView effect = new TextView(service);
+        effect.setText(mode == Mode.BLOCK_ALL
+                ? R.string.picker_effect_block_all
+                : mode == Mode.NAVIGATE
+                ? R.string.picker_effect_navigate
+                : R.string.picker_effect_block);
+        effect.setTextColor(textColor);
+        effect.setTextSize(14f);
+        effect.setPadding(0, 0, 0, dpToPx(12));
+        card.addView(effect);
+
         TextView selectorLabel = new TextView(service);
         selectorLabel.setText(service.getString(R.string.picker_selector_label, selectorDesc));
         selectorLabel.setTextColor(secondaryTextColor);
         selectorLabel.setTextSize(13f);
         selectorLabel.setPadding(0, 0, 0, dpToPx(8));
         card.addView(selectorLabel);
-
-        TextView rulePreview = new TextView(service);
-        rulePreview.setText(service.getString(R.string.picker_rule_preview, generatedRule));
-        rulePreview.setTextColor(secondaryTextColor);
-        rulePreview.setTextSize(12f);
-        rulePreview.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
-        rulePreview.setBackgroundColor(
-                isDarkMode ? Color.argb(60, 255, 255, 255) : Color.argb(30, 0, 0, 0));
-        card.addView(rulePreview);
 
         TextView commentLabel = new TextView(service);
         commentLabel.setText(R.string.picker_comment_label);
@@ -553,6 +609,21 @@ public class ElementPickerOverlay {
         commentInput.setSingleLine(true);
         card.addView(commentInput);
 
+        // Kept, because it is what someone would paste into Custom Rules or a bug report, but
+        // demoted below the decision: it is the answer to a question almost nobody is asking
+        // at this moment, and it read as the main content when it sat at the top.
+        TextView rulePreview = new TextView(service);
+        rulePreview.setText(service.getString(R.string.picker_rule_preview, generatedRule));
+        rulePreview.setTextColor(secondaryTextColor);
+        rulePreview.setTextSize(11f);
+        rulePreview.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+        rulePreview.setBackgroundColor(
+                isDarkMode ? Color.argb(60, 255, 255, 255) : Color.argb(30, 0, 0, 0));
+        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        previewParams.topMargin = dpToPx(16);
+        card.addView(rulePreview, previewParams);
+
         LinearLayout btnRow = new LinearLayout(service);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.END);
@@ -563,7 +634,14 @@ public class ElementPickerOverlay {
                 isDarkMode ? Color.WHITE : Color.BLACK);
         cancelBtn.setOnClickListener(v -> removeSafely(container));
 
-        Button confirmBtn = createButton(service.getString(R.string.picker_dialog_confirm),
+        // The confirm button names the action it performs. It previously read "Block" in every
+        // mode, so the Open flow ended on a red button offering to block.
+        int confirmLabel = mode == Mode.BLOCK_ALL
+                ? R.string.picker_dialog_confirm_all
+                : mode == Mode.NAVIGATE
+                ? R.string.picker_dialog_confirm_open
+                : R.string.picker_dialog_confirm;
+        Button confirmBtn = createButton(service.getString(confirmLabel),
                 mode == Mode.NAVIGATE
                         ? Color.argb(200, 40, 120, 200)
                         : Color.argb(200, 200, 40, 40),
@@ -643,7 +721,9 @@ public class ElementPickerOverlay {
         undoBar.setPadding(hPad, vPad, hPad, vPad);
 
         TextView message = new TextView(service);
-        String text = service.getString(R.string.picker_rule_applied, ruleDescription);
+        String text = service.getString(lastAppliedMode == Mode.NAVIGATE
+                ? R.string.picker_rule_applied_open
+                : R.string.picker_rule_applied, ruleDescription);
         message.setText(text);
         message.setTextColor(Color.WHITE);
         message.setTextSize(13f);

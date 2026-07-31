@@ -25,18 +25,32 @@ import java.util.List;
 public class AutoNavigator {
 
     /**
-     * How long after entering an app its target screen is still worth reaching for. An app
-     * needs a moment to lay out its tab bar, so the first attempt usually finds nothing. Past
-     * this window the user has had time to navigate somewhere on purpose, and a late jump
-     * would read as the app fighting them.
+     * How long to wait for the app's own window to actually reach the foreground.
+     *
+     * <p>Launching an app and being able to read its screen are far apart, and unpredictably
+     * so: measured cold starts have taken anywhere from 65ms to several seconds. Nothing can be
+     * found during that time because the active window still belongs to whatever came before,
+     * so waiting is not a sign that anything is wrong. Generous on purpose -- while this runs,
+     * the app is not yet on screen, so there is no user action to interrupt.
      */
-    public static final long ATTEMPT_WINDOW_MS = 6000;
+    public static final long APPEARANCE_WINDOW_MS = 20000;
+
+    /**
+     * How long to keep looking for the target once the app <em>is</em> on screen.
+     *
+     * <p>This is the window that has to stay short, because it is the only one during which a
+     * late jump could yank the user off a screen they chose. Timed from the app appearing
+     * rather than from the launch, so a slow start cannot eat it.
+     */
+    public static final long SEARCH_WINDOW_MS = 4000;
 
     private final List<FilterRule> rules = new ArrayList<>();
 
     private String foregroundPackage;
     private String armedPackage;
     private long armedAtMs;
+    /** When the armed app's window first became readable, or 0 while still waiting. */
+    private long appearedAtMs;
 
     /**
      * Replaces the rule set, keeping only enabled rules. Any pending navigation whose rule has
@@ -107,21 +121,33 @@ public class AutoNavigator {
         foregroundPackage = packageName;
         armedPackage = ruleFor(packageName) != null ? packageName : null;
         armedAtMs = nowMs;
+        appearedAtMs = 0;
         return armedPackage != null;
+    }
+
+    /**
+     * Records that the armed app's window is now readable, starting the search window. Only
+     * the first such call counts, so an app that redraws repeatedly cannot keep extending it.
+     */
+    public void noteAppeared(long nowMs) {
+        if (armedPackage != null && appearedAtMs == 0) {
+            appearedAtMs = nowMs;
+        }
+    }
+
+    /** Whether the armed app has been seen on screen yet, as opposed to still starting up. */
+    public boolean hasAppeared() {
+        return appearedAtMs != 0;
     }
 
     /**
      * The rule to act on for the currently active window, or null when there is nothing to do
      * -- either because no visit is armed, the active window belongs to a different app, or
-     * the attempt window has closed. Expiry is resolved here so a stale arming cannot survive
-     * to be acted on later.
+     * the attempt has timed out. Expiry is resolved here so a stale arming cannot survive to
+     * be acted on later.
      */
     public FilterRule armedRuleFor(CharSequence activePackage, long nowMs) {
-        if (armedPackage == null) {
-            return null;
-        }
-        if (nowMs - armedAtMs > ATTEMPT_WINDOW_MS) {
-            armedPackage = null;
+        if (!isArmed(nowMs)) {
             return null;
         }
         if (activePackage == null || !armedPackage.contentEquals(activePackage)) {
@@ -132,15 +158,36 @@ public class AutoNavigator {
 
     /** Whether an attempt is still outstanding, i.e. worth scheduling another retry for. */
     public boolean isArmed(long nowMs) {
-        if (armedPackage != null && nowMs - armedAtMs > ATTEMPT_WINDOW_MS) {
+        if (armedPackage != null && hasTimedOut(nowMs)) {
+            if (appearedAtMs == 0) {
+                // The app announced itself but never actually came to the front -- a window
+                // event from a card in the app switcher, say. Treating that as a visit would
+                // be worse than useless: the next genuine open would find the app already
+                // recorded as current, decide nothing had changed, and do nothing. A visit
+                // that never materialised is forgotten instead.
+                foregroundPackage = null;
+            }
             armedPackage = null;
         }
         return armedPackage != null;
     }
 
+    /**
+     * Two deadlines rather than one, because the two waits mean different things. Before the
+     * app is on screen nothing could have been found anyway and the user is looking at a
+     * launch animation; after it, every extra second is one in which the user may have started
+     * doing something the jump would interrupt.
+     */
+    private boolean hasTimedOut(long nowMs) {
+        return appearedAtMs == 0
+                ? nowMs - armedAtMs > APPEARANCE_WINDOW_MS
+                : nowMs - appearedAtMs > SEARCH_WINDOW_MS;
+    }
+
     /** Ends the current visit's navigation, after a successful click or a deliberate stop. */
     public void disarm() {
         armedPackage = null;
+        appearedAtMs = 0;
     }
 
     /**
@@ -166,5 +213,6 @@ public class AutoNavigator {
     public void reset() {
         foregroundPackage = null;
         armedPackage = null;
+        appearedAtMs = 0;
     }
 }

@@ -421,7 +421,16 @@ public abstract class BaseDistractionControlService extends AccessibilityService
      * the app is still laying out -- so failure here is expected rather than exceptional.
      */
     private void attemptNavigation() {
-        if (!screenOn || !autoNavigator.isArmed(SystemClock.uptimeMillis())) {
+        if (!screenOn) {
+            return;
+        }
+        if (!autoNavigator.isArmed(SystemClock.uptimeMillis())) {
+            // Distinguished in the log because the two give up for opposite reasons: one means
+            // the app never became readable, the other that it did and the element was not on
+            // it. Silence here is what makes a failure impossible to tell from doing nothing.
+            Log.i(getLogTag(), autoNavigator.hasAppeared()
+                    ? "Auto-navigation gave up: target not found while the app was on screen"
+                    : "Auto-navigation gave up: the app never reached the foreground");
             return;
         }
         // Blocking is suspended while the element picker is up, and a jump to another screen
@@ -445,11 +454,15 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             if (root == null) {
                 return false;
             }
-            FilterRule rule = autoNavigator.armedRuleFor(
-                    root.getPackageName(), SystemClock.uptimeMillis());
+            long now = SystemClock.uptimeMillis();
+            FilterRule rule = autoNavigator.armedRuleFor(root.getPackageName(), now);
             if (rule == null) {
                 return false;
             }
+            // The armed app owns the active window, so it is on screen and readable. Until
+            // this point nothing could have been found, and that wait must not count against
+            // the time allowed for finding the element.
+            autoNavigator.noteAppeared(now);
             AccessibilityNodeInfo target = findNavigationTarget(root, rule);
             if (target == null) {
                 return false;
@@ -505,7 +518,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             return found;
         }
         if (rule.contentDescriptions != null && !rule.contentDescriptions.isEmpty()) {
-            return findByContentDescription(root, rule.contentDescriptions);
+            return findByContentDescription(root, rule);
         }
         return null;
     }
@@ -548,9 +561,8 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     /** Depth-first search for a visible node carrying one of the given descriptions. */
     private AccessibilityNodeInfo findByContentDescription(AccessibilityNodeInfo node,
-                                                          Set<String> targets) {
-        CharSequence desc = node.getContentDescription();
-        if (desc != null && node.isVisibleToUser() && targets.contains(desc.toString())) {
+                                                          FilterRule rule) {
+        if (node.isVisibleToUser() && rule.matchesDescription(node.getContentDescription())) {
             return node;
         }
         for (int i = 0; i < node.getChildCount(); i++) {
@@ -558,7 +570,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             if (child == null) {
                 continue;
             }
-            AccessibilityNodeInfo found = findByContentDescription(child, targets);
+            AccessibilityNodeInfo found = findByContentDescription(child, rule);
             if (found != null) {
                 // The match is on the returned path, so only unrelated children are recycled.
                 if (found != child) {
@@ -1017,8 +1029,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         }
 
         if (rule.contentDescriptions != null && !rule.contentDescriptions.isEmpty()) {
-            CharSequence desc = node.getContentDescription();
-            if (desc != null && rule.contentDescriptions.contains(desc.toString())) {
+            if (rule.matchesDescription(node.getContentDescription())) {
                 return true;
             }
         }
@@ -1151,7 +1162,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
-                if (subtreeContainsContentDescription(child, rule.contentDescriptions)) {
+                if (subtreeContainsContentDescription(child, rule)) {
                     Rect bounds = new Rect();
                     child.getBoundsInScreen(bounds);
                     if (!bounds.isEmpty()) {
@@ -1214,18 +1225,17 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 || className.endsWith("TextureView");
     }
 
-    private boolean subtreeContainsContentDescription(AccessibilityNodeInfo node, Set<String> targets) {
+    private boolean subtreeContainsContentDescription(AccessibilityNodeInfo node, FilterRule rule) {
         if (node == null) return false;
 
-        CharSequence desc = node.getContentDescription();
-        if (desc != null && targets.contains(desc.toString())) return true;
+        if (rule.matchesDescription(node.getContentDescription())) return true;
 
         int childCount = node.getChildCount();
         for (int i = 0; i < childCount; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child == null) continue;
             try {
-                if (subtreeContainsContentDescription(child, targets)) return true;
+                if (subtreeContainsContentDescription(child, rule)) return true;
             } finally {
                 child.recycle();
             }

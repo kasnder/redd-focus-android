@@ -19,6 +19,12 @@ package.name##key=value##key=value
 Common keys:
 - `viewId`: match a specific Android view ID
 - `desc`: match a content description
+- `descMatch`: how `desc` is compared — `exact` (default), `prefix`, or `substring`. Use
+  `prefix` when the description ends in something that changes: a description is what a screen
+  reader announces, so it often carries a badge count or a selected state
+  (`Unread filter, 25, unselected`). Matching that exactly means the rule stops working as soon
+  as the count does. Store the steady part (`Unread filter`) with `descMatch=prefix` instead.
+  Keep it as long as you can — a short value can quietly match its neighbours too
 - `path`: match a view hierarchy path, counted from the window root
 - `childPath`: match a view hierarchy path counted from the `viewId` above, instead of from the window root
 - `hasThumbnail`: keep only matches that contain an image of at least a given width in dp,

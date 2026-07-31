@@ -105,7 +105,7 @@ public class ElementPickerRuleGenerator {
             // A pipe separates alternatives in a desc list, so one inside a description would
             // parse into two that each match nothing. Fall through rather than emit that.
             if (!value.isEmpty() && !value.contains("|")) {
-                return new NavigationSelector("##desc=" + value, "Description: " + value);
+                return describedSelector(value);
             }
         }
 
@@ -117,6 +117,56 @@ public class ElementPickerRuleGenerator {
         }
 
         return null;
+    }
+
+    /**
+     * Turns a content description into a selector, dropping any trailing status.
+     *
+     * <p>A description is written to be read aloud, so it carries what is true right now:
+     * "Unread filter, 25, unselected", "someone's story, 3 of 27, Unseen.". Stored whole, the
+     * rule dies the moment that count changes. The convention that status is appended after a
+     * comma comes from how the platform concatenates a label with its state, not from any one
+     * app, so cutting there generalises.
+     *
+     * <p>The cut is a suggestion, not a hidden matching rule: what is stored is a plain prefix,
+     * the whole of it is shown in the confirmation card, and the caller checks it still picks
+     * out exactly one element before offering to save it.
+     */
+    static NavigationSelector describedSelector(String value) {
+        int comma = value.indexOf(',');
+        if (comma <= 0) {
+            return new NavigationSelector("##desc=" + value, "Description: " + value);
+        }
+        String label = value.substring(0, comma).trim();
+        if (label.isEmpty()) {
+            return new NavigationSelector("##desc=" + value, "Description: " + value);
+        }
+        return new NavigationSelector("##desc=" + label + "##descMatch=prefix",
+                "Description starting with: " + label);
+    }
+
+    /**
+     * Counts the visible nodes a description-based rule would match.
+     *
+     * <p>A looser comparison is only safe if it still names one thing. Checking against the
+     * screen the element was picked from turns "refuse rather than guess" from a ranking
+     * preference into something actually tested. It cannot speak for screens not on display.
+     */
+    public static int countDescriptionMatches(AccessibilityNodeInfo node, FilterRule rule) {
+        if (node == null) return 0;
+
+        int count = node.isVisibleToUser() && rule.matchesDescription(node.getContentDescription())
+                ? 1 : 0;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) continue;
+            try {
+                count += countDescriptionMatches(child, rule);
+            } finally {
+                child.recycle();
+            }
+        }
+        return count;
     }
 
     /**

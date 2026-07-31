@@ -347,7 +347,89 @@ public class ElementPickerRuleGeneratorTest {
         String rule = ElementPickerRuleGenerator.generateNavigationRule(
                 node, rootNode, "com.example", null);
 
+        // Nothing appended, so nothing to drop, and exact matching stays the default.
         assertEquals("com.example##desc=Message", rule);
+    }
+
+    /**
+     * "AI filter, 1, unselected" carries the badge count and the selection state. Stored whole
+     * it would stop matching as soon as either changed, so the volatile tail is cut and the
+     * remainder matched as a prefix.
+     */
+    @Test
+    public void navigationRuleDropsStatusAppendedToADescription() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn(null);
+        when(node.getContentDescription()).thenReturn("AI filter, 1, unselected");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null);
+
+        assertEquals("com.example##desc=AI filter##descMatch=prefix", rule);
+    }
+
+    @Test
+    public void navigationSelectorSaysWhenItIsMatchingLoosely() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn(null);
+        when(node.getContentDescription()).thenReturn("Unread filter, 25, unselected");
+
+        ElementPickerRuleGenerator.NavigationSelector selector =
+                ElementPickerRuleGenerator.navigationSelector(node, rootNode);
+
+        assertEquals("Description starting with: Unread filter", selector.description);
+    }
+
+    /** A description that is nothing but status has no label to keep, so it is left whole. */
+    @Test
+    public void navigationRuleKeepsADescriptionThatStartsWithAComma() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn(null);
+        when(node.getContentDescription()).thenReturn(", 1, unselected");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null);
+
+        assertEquals("com.example##desc=, 1, unselected", rule);
+    }
+
+    // --- Ambiguity check ---
+
+    private static AccessibilityNodeInfo describedChild(AccessibilityNodeInfo parent, String desc) {
+        AccessibilityNodeInfo node = child(parent, "android.widget.RadioButton");
+        node.setContentDescription(desc);
+        // Only what is on screen counts -- an off-screen namesake is not an ambiguity the user
+        // could see, and Robolectric's nodes are not visible unless told so.
+        node.setVisibleToUser(true);
+        return node;
+    }
+
+    @Test
+    public void countsEveryElementALooseSelectorWouldReach() {
+        describedChild(rootNode, "All filter, , selected");
+        describedChild(rootNode, "Unread filter, 25, unselected");
+        describedChild(rootNode, "AI filter, 1, unselected");
+
+        FilterRule tooLoose = new FilterRuleParser().parseRules(new String[]{
+                "com.example##desc=filter##descMatch=substring"}).get(0);
+        FilterRule justRight = new FilterRuleParser().parseRules(new String[]{
+                "com.example##desc=AI filter##descMatch=prefix"}).get(0);
+
+        // Every chip on the row is a "filter", so that selector names all of them and would
+        // click whichever the tree walk reached first. The picker refuses it; the specific
+        // one it does offer names exactly the element that was tapped.
+        assertEquals(3, ElementPickerRuleGenerator.countDescriptionMatches(rootNode, tooLoose));
+        assertEquals(1, ElementPickerRuleGenerator.countDescriptionMatches(rootNode, justRight));
+    }
+
+    @Test
+    public void countsNothingWhenTheDescriptionIsAbsent() {
+        describedChild(rootNode, "Groups filter, 5, unselected");
+
+        FilterRule rule = new FilterRuleParser().parseRules(new String[]{
+                "com.example##desc=Archived##descMatch=prefix"}).get(0);
+
+        assertEquals(0, ElementPickerRuleGenerator.countDescriptionMatches(rootNode, rule));
     }
 
     /**
