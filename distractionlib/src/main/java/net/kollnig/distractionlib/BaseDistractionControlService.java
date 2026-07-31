@@ -478,6 +478,9 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private AccessibilityNodeInfo findNavigationTarget(AccessibilityNodeInfo root,
                                                        FilterRule rule) {
         if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+            if (rule.targetChildPath != null && !rule.targetChildPath.isEmpty()) {
+                return findAnchoredNavigationTarget(root, rule);
+            }
             List<AccessibilityNodeInfo> matches =
                     root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
             if (matches == null) {
@@ -497,6 +500,42 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             return findByContentDescription(root, rule.contentDescriptions);
         }
         return null;
+    }
+
+    /**
+     * Resolves a rule that names a path below an anchoring view ID. Without this the view-ID
+     * branch would find the anchor and click <em>that</em> -- the tab bar rather than the tab.
+     *
+     * @return a node the caller owns and must recycle, or null
+     */
+    private AccessibilityNodeInfo findAnchoredNavigationTarget(AccessibilityNodeInfo root,
+                                                               FilterRule rule) {
+        List<AccessibilityNodeInfo> anchors =
+                root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
+        if (anchors == null) {
+            return null;
+        }
+
+        AccessibilityNodeInfo found = null;
+        for (AccessibilityNodeInfo anchor : anchors) {
+            try {
+                if (found != null || !anchor.isVisibleToUser()) {
+                    continue;
+                }
+                for (AccessibilityNodeInfo target : matchPaths(anchor, rule.targetChildPath)) {
+                    if (found == null && target.isVisibleToUser()) {
+                        found = target;
+                    } else if (target != anchor) {
+                        target.recycle();
+                    }
+                }
+            } finally {
+                if (anchor != found) {
+                    anchor.recycle();
+                }
+            }
+        }
+        return found;
     }
 
     /** Depth-first search for a visible node carrying one of the given descriptions. */

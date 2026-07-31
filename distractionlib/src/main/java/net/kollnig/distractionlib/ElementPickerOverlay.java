@@ -34,10 +34,25 @@ import java.util.List;
 public class ElementPickerOverlay {
     private static final String TAG = "ElementPickerOverlay";
 
+    /** What the picked element should be turned into. */
+    public enum Mode {
+        /** Cover this one element. */
+        BLOCK,
+        /** Cover every element shaped like this one. */
+        BLOCK_ALL,
+        /** Click this element whenever the app is opened. */
+        NAVIGATE
+    }
+
     public interface Listener {
         void onRuleChosen(String ruleString);
 
         void onRuleUndone(String ruleString);
+
+        /** A rule that opens a screen rather than hiding one; stored separately. */
+        void onNavigationRuleChosen(String ruleString);
+
+        void onNavigationRuleUndone(String ruleString);
 
         void onPickerDismissed();
     }
@@ -59,6 +74,7 @@ public class ElementPickerOverlay {
     private boolean isActive = false;
     private boolean isAtBottom = true;
     private String lastAppliedRule = null;
+    private Mode lastAppliedMode = Mode.BLOCK;
     private LinearLayout undoBar = null;
     private Runnable undoAutoHideRunnable = null;
     private static final long UNDO_TIMEOUT_MS = 8000;
@@ -241,6 +257,11 @@ public class ElementPickerOverlay {
                 Color.argb(200, 200, 80, 40), btnTextColor);
         blockAllBtn.setOnClickListener(v -> confirmBlockAll());
         buttonRow.addView(blockAllBtn, createButtonParams());
+
+        Button openBtn = createButton(service.getString(R.string.picker_open),
+                Color.argb(200, 40, 120, 200), btnTextColor);
+        openBtn.setOnClickListener(v -> confirmNavigate());
+        buttonRow.addView(openBtn, createButtonParams());
 
         Button moveBtn = createButton(service.getString(R.string.picker_move),
                 Color.argb(200, 100, 100, 100), btnTextColor);
@@ -429,7 +450,7 @@ public class ElementPickerOverlay {
         String generatedRule =
                 ElementPickerRuleGenerator.generateRule(node, currentRootNode, currentPackageName,
                         null);
-        showConfirmationOverlay(node, selectorDesc, generatedRule, false);
+        showConfirmationOverlay(node, selectorDesc, generatedRule, Mode.BLOCK);
     }
 
     private void confirmBlockAll() {
@@ -442,11 +463,32 @@ public class ElementPickerOverlay {
         String selectorDesc = "All similar elements";
         String generatedRule = ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode,
                 currentPackageName, null);
-        showConfirmationOverlay(node, selectorDesc, generatedRule, true);
+        showConfirmationOverlay(node, selectorDesc, generatedRule, Mode.BLOCK_ALL);
+    }
+
+    private void confirmNavigate() {
+        if (nodesAtPoint.isEmpty() || currentNodeIndex >= nodesAtPoint.size()) {
+            Toast.makeText(service, R.string.picker_no_element, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AccessibilityNodeInfo node = nodesAtPoint.get(currentNodeIndex);
+        ElementPickerRuleGenerator.NavigationSelector selector =
+                ElementPickerRuleGenerator.navigationSelector(node, currentRootNode);
+        if (selector == null) {
+            // Refused rather than approximated: this element has nothing stable enough to
+            // identify, and a rule built on a guess would eventually tap something else.
+            Toast.makeText(service, R.string.picker_open_unsupported, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        String generatedRule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, currentRootNode, currentPackageName, null);
+        showConfirmationOverlay(node, selector.description, generatedRule, Mode.NAVIGATE);
     }
 
     private void showConfirmationOverlay(AccessibilityNodeInfo node, String selectorDesc,
-                                         String generatedRule, boolean isBlockAll) {
+                                         String generatedRule, Mode mode) {
         boolean isDarkMode = (service.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
 
@@ -470,7 +512,11 @@ public class ElementPickerOverlay {
         cardParams.rightMargin = dpToPx(24);
 
         TextView title = new TextView(service);
-        title.setText(isBlockAll ? R.string.picker_confirm_all_title : R.string.picker_confirm_title);
+        title.setText(mode == Mode.BLOCK_ALL
+                ? R.string.picker_confirm_all_title
+                : mode == Mode.NAVIGATE
+                ? R.string.picker_confirm_open_title
+                : R.string.picker_confirm_title);
         title.setTextColor(textColor);
         title.setTextSize(18f);
         title.setPadding(0, 0, 0, dpToPx(12));
@@ -518,20 +564,39 @@ public class ElementPickerOverlay {
         cancelBtn.setOnClickListener(v -> removeSafely(container));
 
         Button confirmBtn = createButton(service.getString(R.string.picker_dialog_confirm),
-                Color.argb(200, 200, 40, 40), Color.WHITE);
+                mode == Mode.NAVIGATE
+                        ? Color.argb(200, 40, 120, 200)
+                        : Color.argb(200, 200, 40, 40),
+                Color.WHITE);
         confirmBtn.setOnClickListener(v -> {
             String comment = commentInput.getText().toString().trim();
             if (comment.isEmpty()) {
                 comment = selectorDesc;
             }
 
-            String finalRule = isBlockAll
-                    ? ElementPickerRuleGenerator.generateRuleForAll(node, currentRootNode,
-                    currentPackageName, comment)
-                    : ElementPickerRuleGenerator.generateRule(node, currentRootNode,
-                    currentPackageName, comment);
-            listener.onRuleChosen(finalRule);
+            String finalRule;
+            switch (mode) {
+                case BLOCK_ALL:
+                    finalRule = ElementPickerRuleGenerator.generateRuleForAll(node,
+                            currentRootNode, currentPackageName, comment);
+                    break;
+                case NAVIGATE:
+                    finalRule = ElementPickerRuleGenerator.generateNavigationRule(node,
+                            currentRootNode, currentPackageName, comment);
+                    break;
+                default:
+                    finalRule = ElementPickerRuleGenerator.generateRule(node, currentRootNode,
+                            currentPackageName, comment);
+                    break;
+            }
+
+            if (mode == Mode.NAVIGATE) {
+                listener.onNavigationRuleChosen(finalRule);
+            } else {
+                listener.onRuleChosen(finalRule);
+            }
             lastAppliedRule = finalRule;
+            lastAppliedMode = mode;
             removeSafely(container);
             hideHighlight();
             recycleNodes();
@@ -596,7 +661,13 @@ public class ElementPickerOverlay {
         undoBtn.setPadding(dpToPx(12), 0, dpToPx(4), 0);
         undoBtn.setOnClickListener(v -> {
             if (lastAppliedRule != null) {
-                listener.onRuleUndone(lastAppliedRule);
+                // Navigation rules live in their own store, so undo has to go back to the same
+                // one the rule was written to.
+                if (lastAppliedMode == Mode.NAVIGATE) {
+                    listener.onNavigationRuleUndone(lastAppliedRule);
+                } else {
+                    listener.onRuleUndone(lastAppliedRule);
+                }
                 lastAppliedRule = null;
             }
             removeUndoBar();

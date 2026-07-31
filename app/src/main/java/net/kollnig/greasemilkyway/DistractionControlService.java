@@ -91,6 +91,16 @@ public class DistractionControlService extends BaseDistractionControlService {
                     }
 
                     @Override
+                    public void onNavigationRuleChosen(String ruleString) {
+                        saveAndApplyPickerNavigationRule(ruleString);
+                    }
+
+                    @Override
+                    public void onNavigationRuleUndone(String ruleString) {
+                        undoPickerNavigationRule(ruleString);
+                    }
+
+                    @Override
                     public void onPickerDismissed() {
                         stopPickerMode();
                     }
@@ -186,6 +196,36 @@ public class DistractionControlService extends BaseDistractionControlService {
             FilterRule rule = parsed.get(0);
             config.setRuleEnabled(rule, true);
             config.setPackageDisabled(rule.packageName, false);
+        }
+
+        updateRules();
+    }
+
+    /**
+     * Stores a picker-built navigation rule and switches it on. Unlike a blocking rule this
+     * does not touch {@code setPackageDisabled}: navigation is its own opt-in, and enabling it
+     * must not quietly start hiding things in that app as well.
+     */
+    private void saveAndApplyPickerNavigationRule(String ruleString) {
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRuleParser parser = new FilterRuleParser();
+        List<FilterRule> parsed = parser.parseRules(new String[]{ruleString});
+        if (!parsed.isEmpty()) {
+            config.setNavigationRuleEnabled(parsed.get(0), true);
+        }
+
+        updateRules();
+    }
+
+    private void undoPickerNavigationRule(String ruleString) {
+        Log.i(TAG, "Undoing picker navigation rule: " + ruleString);
+        config.removeCustomNavigationRule(ruleString);
+
+        FilterRuleParser parser = new FilterRuleParser();
+        List<FilterRule> parsed = parser.parseRules(new String[]{ruleString});
+        if (!parsed.isEmpty()) {
+            config.setNavigationRuleEnabled(parsed.get(0), false);
         }
 
         updateRules();

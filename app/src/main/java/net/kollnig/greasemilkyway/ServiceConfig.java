@@ -37,6 +37,7 @@ public class ServiceConfig {
      * must not silently also start moving the user to another screen.
      */
     public static final String KEY_NAVIGATION_RULE_ENABLED = "nav_rule_enabled_";
+    private static final String KEY_CUSTOM_NAVIGATION_RULES = "custom_navigation_rules";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
     private static final String NAVIGATION_RULES_FILE = "navigation_rules.txt";
     /**
@@ -302,15 +303,61 @@ public class ServiceConfig {
      * WhatsApp to open on a chat list has not thereby asked for anything to be hidden.
      */
     public List<FilterRule> getNavigationRules() {
+        List<FilterRule> rules = new ArrayList<>();
+
         List<String> lines = readAssetLines(NAVIGATION_RULES_FILE);
-        if (lines == null || lines.isEmpty()) {
-            return new ArrayList<>();
+        if (lines != null && !lines.isEmpty()) {
+            rules.addAll(ruleParser.parseRules(lines.toArray(new String[0])));
         }
-        List<FilterRule> rules = ruleParser.parseRules(lines.toArray(new String[0]));
+
+        // Rules the user built with the element picker. Appended rather than merged: a failed
+        // asset read must not take the user's own rules down with it.
+        String[] custom = getCustomNavigationRules();
+        if (custom != null) {
+            List<FilterRule> parsed = ruleParser.parseRules(custom);
+            for (FilterRule rule : parsed) {
+                rule.isCustom = true;
+            }
+            rules.addAll(parsed);
+        }
+
         for (FilterRule rule : rules) {
             rule.enabled = isNavigationRuleEnabled(rule);
         }
         return rules;
+    }
+
+    public String[] getCustomNavigationRules() {
+        String rules = prefs.getString(KEY_CUSTOM_NAVIGATION_RULES, "");
+        return rules.isEmpty() ? null : rules.split("\n");
+    }
+
+    public void addCustomNavigationRule(String ruleString) {
+        String existing = prefs.getString(KEY_CUSTOM_NAVIGATION_RULES, "");
+        String updated = existing.isEmpty() ? ruleString : existing + "\n" + ruleString;
+        prefs.edit().putString(KEY_CUSTOM_NAVIGATION_RULES, updated).apply();
+    }
+
+    /** Removes the first custom navigation rule matching the given text exactly. */
+    public void removeCustomNavigationRule(String ruleString) {
+        String[] existing = getCustomNavigationRules();
+        if (existing == null) return;
+
+        List<String> updated = new ArrayList<>();
+        boolean removed = false;
+        for (String rule : existing) {
+            if (!removed && rule.equals(ruleString)) {
+                removed = true;
+                continue;
+            }
+            updated.add(rule);
+        }
+
+        if (removed) {
+            prefs.edit()
+                    .putString(KEY_CUSTOM_NAVIGATION_RULES, String.join("\n", updated))
+                    .apply();
+        }
     }
 
     public boolean isNavigationRuleEnabled(FilterRule rule) {

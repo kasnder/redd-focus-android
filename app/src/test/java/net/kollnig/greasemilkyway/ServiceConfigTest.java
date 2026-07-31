@@ -574,6 +574,58 @@ public class ServiceConfigTest {
         }
     }
 
+    // --- Custom navigation rules (element picker) ---
+
+    @Test
+    public void customNavigationRuleIsAddedAndMarkedCustom() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                assertTrue("picker rules must be marked custom", rule.isCustom);
+                return;
+            }
+        }
+        fail("custom navigation rule did not come back from getNavigationRules()");
+    }
+
+    @Test
+    public void customNavigationRuleCanBeRemoved() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox";
+        config.addCustomNavigationRule(ruleString);
+        config.removeCustomNavigationRule(ruleString);
+
+        assertNull(config.getCustomNavigationRules());
+        for (FilterRule rule : config.getNavigationRules()) {
+            assertNotEquals(ruleString, rule.ruleString);
+        }
+    }
+
+    /**
+     * The picker writes navigation rules to their own store. Sharing one with blocking rules
+     * would make "open this on launch" also hide the element it needs to click.
+     */
+    @Test
+    public void customNavigationRulesAreSeparateFromCustomBlockingRules() {
+        String navRule = "com.example.app##viewId=com.example.app:id/inbox";
+        config.addCustomNavigationRule(navRule);
+
+        assertNull("navigation rules must not leak into the blocking store",
+                config.getCustomRules());
+        for (FilterRule rule : config.getRules()) {
+            assertNotEquals(navRule, rule.ruleString);
+        }
+    }
+
+    @Test
+    public void bundledNavigationRulesSurviveAddingACustomOne() {
+        int bundled = config.getNavigationRules().size();
+        config.addCustomNavigationRule("com.example.app##viewId=com.example.app:id/inbox");
+
+        assertEquals(bundled + 1, config.getNavigationRules().size());
+    }
+
     @Test
     public void everyNavigationRuleHasATargetAndALabel() {
         for (FilterRule rule : config.getNavigationRules()) {
