@@ -71,6 +71,17 @@ The module seam is a rule, not just a layout. `:distractionlib` is app-agnostic 
 - User-visible strings belong in `res/values/strings.xml`. If a string names the app, `gmwaylite` needs an override too.
 - Version bumps live in `app/build.gradle` (`versionCode`/`versionName`); store metadata is in `fastlane/metadata/android/`.
 - `LayoutDumper` is debug-only and hard-disabled (`ENABLED = false`). Leave it that way — it prints the contents of other apps' screens.
-- Work lands as a PR branch, one concern per PR, small enough to review as a single coherent change; commit subjects are imperative and sentence-case ("Guard indexOf(-1) crashes…"). A second concern found mid-change goes to a follow-up, not into the same diff.
-- Explaining a change is the PR description's job: no research notes, change narratives or TODO backlogs committed to maintained files. Code comments are for a non-obvious invariant or platform constraint, and stay short.
+- Edit the worktree that is actually being built, not another checkout.
 - GPLv3.
+
+## Pull requests, issues and documentation
+
+- Use the template in [.github/pull_request_template.md](.github/pull_request_template.md) for PRs.
+- Raise PRs for new code you've written. When asked to review a PR, post findings to the original PR, and make the fixes directly on its branch if they are not too many; if it is a substantial change, make a stacked PR. When fixing a PR under review, push to its existing branch.
+- A PR is one concern, small enough to review confidently as a single coherent change. Closely coupled implementation, tests and required documentation are one concern; unrelated cleanup is not. Judge size by coupling, risk and reviewability rather than a line count, and when the work stops reading as one focused change, split it and stack the branches. A second concern discovered mid-work goes to a follow-up issue or PR.
+- Commit subjects are imperative and sentence-case ("Guard indexOf(-1) crashes…"), with the reasoning in the body.
+- Explaining a change is the PR description's job. Motivation, investigation notes, evidence and rejected alternatives belong there, not in the tree: do not commit research notes, implementation diaries, change narratives or new guides unless the user explicitly asks for them. Update only the authoritative document the behaviour change actually affects, and link to existing detail instead of duplicating it.
+- Open and future work lives in GitHub issues, never as backlogs or TODO lists in maintained files.
+- Prefer editing an existing file over adding a new one, and create a PR when the work is done.
+- Branches are sometimes stacked, one PR based on another PR's branch rather than on `main`. Land a fix on the branch that introduces the defect: fixing only the upper PR leaves a window where merging the lower one carries the defect into `main` alone.
+- Add a code comment only for a non-obvious invariant, hazard or platform constraint, and keep it short. Never narrate the change, rejected alternatives or history in code; that context belongs in the PR description.
