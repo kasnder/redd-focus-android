@@ -620,6 +620,57 @@ public class ServiceConfigTest {
         }
     }
 
+    @Test
+    public void enablingAPackageRestoresNavigationRulesFromTheirOwnPreferenceSpace() {
+        String packageName = "com.example.navigation";
+        String ruleString = packageName + "##viewId=" + packageName + ":id/inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule navigationRule = null;
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                navigationRule = rule;
+                break;
+            }
+        }
+        assertNotNull(navigationRule);
+        FilterRule blockingRule = createRule(ruleString);
+
+        config.setNavigationRuleEnabled(navigationRule, true);
+        config.setRuleEnabled(blockingRule, false);
+        config.setPackageDisabled(packageName, true);
+
+        List<FilterRule> rules = new ArrayList<>();
+        rules.add(blockingRule);
+        rules.add(navigationRule);
+        config.enablePackageRules(packageName, rules);
+
+        assertFalse("the blocking preference remains separate", blockingRule.enabled);
+        assertTrue("the navigation preference is restored", navigationRule.enabled);
+    }
+
+    @Test
+    public void enablingAPackageForTheFirstTimePersistsNavigationRules() {
+        String packageName = "com.example.firstnavigation";
+        String ruleString = packageName + "##viewId=" + packageName + ":id/inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule navigationRule = null;
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                navigationRule = rule;
+                break;
+            }
+        }
+        assertNotNull(navigationRule);
+
+        config.enablePackageRules(packageName, java.util.Collections.singletonList(navigationRule));
+
+        assertTrue(navigationRule.enabled);
+        assertTrue("a reload must keep the rule enabled",
+                config.isNavigationRuleEnabled(navigationRule));
+    }
+
     // --- Custom navigation rules (element picker) ---
 
     @Test

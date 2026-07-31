@@ -102,6 +102,17 @@ public class AutoNavigator {
         return surplus;
     }
 
+    /**
+     * Whether the current visit needs foreground-change observation beyond the target packages.
+     *
+     * <p>The service normally filters event delivery to enabled rule packages. While the user
+     * remains inside a navigation target it temporarily listens to every package, so leaving for
+     * an unrelated app is observed and a later return is recognised as a fresh visit.
+     */
+    public boolean isForegroundNavigationTarget() {
+        return foregroundPackage != null && ruleFor(foregroundPackage) != null;
+    }
+
     /** The navigation rule for a package, or null if that package has none. */
     public FilterRule ruleFor(CharSequence packageName) {
         if (packageName == null) {
