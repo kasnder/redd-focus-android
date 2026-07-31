@@ -157,10 +157,6 @@
     <string name="response_speed_default">Default</string>
     <string name="response_speed_battery_saver">Battery saver</string>
 
-    <!-- Open on launch -->
+    <!-- Section heading for rules that open a screen rather than hide one -->
     <string name="auto_navigation_title">Open on launch</string>
-    <string name="auto_navigation_subtitle">Skip the landing screen and go straight to a chosen one</string>
-    <string name="auto_navigation_none">Off for all apps</string>
-    <string name="auto_navigation_unavailable">No apps available</string>
-    <string name="auto_navigation_entry">%1$s: %2$s</string>
 </resources>

@@ -127,4 +127,36 @@ public class RulesAdapterTest {
 
         assertEquals(2, rows.size());
     }
+
+    /**
+     * Navigation and blocking rules are stored under different preference keys, so a mixed
+     * row's switch would have to write to both stores at once and deleting it would have to
+     * remove from both. They are also the two things most likely to share a comment, since
+     * hiding a tab and opening it describe the same element.
+     */
+    @Test
+    public void navigationRuleNeverMergesWithABlockingRuleSharingItsComment() {
+        List<FilterRule> rules = parse(
+                "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox",
+                "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox");
+        rules.get(1).isNavigation = true;
+
+        List<List<FilterRule>> rows = RulesAdapter.mergeRules(rules);
+
+        assertEquals(2, rows.size());
+        assertFalse(RulesAdapter.isNavigationRow(rows.get(0)));
+        assertTrue(RulesAdapter.isNavigationRow(rows.get(1)));
+    }
+
+    @Test
+    public void navigationRulesSharingACommentStillMergeWithEachOther() {
+        List<FilterRule> rules = parse(
+                "com.example.app##viewId=com.example.app:id/a##comment=Open inbox",
+                "com.example.app##viewId=com.example.app:id/b##comment=Open inbox");
+        for (FilterRule rule : rules) {
+            rule.isNavigation = true;
+        }
+
+        assertEquals(1, RulesAdapter.mergeRules(rules).size());
+    }
 }

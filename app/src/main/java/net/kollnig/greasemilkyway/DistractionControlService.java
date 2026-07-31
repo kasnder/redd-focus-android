@@ -207,13 +207,22 @@ public class DistractionControlService extends BaseDistractionControlService {
      * must not quietly start hiding things in that app as well.
      */
     private void saveAndApplyPickerNavigationRule(String ruleString) {
-        config.addCustomNavigationRule(ruleString);
-
         FilterRuleParser parser = new FilterRuleParser();
         List<FilterRule> parsed = parser.parseRules(new String[]{ruleString});
-        if (!parsed.isEmpty()) {
-            config.setNavigationRuleEnabled(parsed.get(0), true);
+        if (parsed.isEmpty()) {
+            return;
         }
+        FilterRule rule = parsed.get(0);
+
+        // Picking the same element twice would otherwise append a second copy that shares the
+        // first one's preference key -- two rows in the list driven by a single switch.
+        if (!config.hasNavigationRuleLike(rule)) {
+            config.addCustomNavigationRule(ruleString);
+        }
+        config.setNavigationRuleEnabled(rule, true);
+        // Navigation rules obey the app switch, so turning one on has to turn that on as well
+        // or the new rule would arrive already overridden.
+        config.setPackageDisabled(rule.packageName, false);
 
         updateRules();
     }

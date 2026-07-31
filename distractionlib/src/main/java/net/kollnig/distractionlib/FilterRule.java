@@ -40,6 +40,12 @@ public class FilterRule {
     public final boolean blockTouches;
     public boolean enabled;
     public boolean isCustom;
+    /**
+     * Whether this rule opens a screen rather than hiding one. Presentation and persistence
+     * state, like {@link #isCustom}, so deliberately absent from {@link #identity()}: the two
+     * kinds are keyed in separate preference name spaces rather than distinguished by identity.
+     */
+    public boolean isNavigation;
     public boolean isPaused;
     public long pausedUntil;
 
@@ -116,6 +122,7 @@ public class FilterRule {
         this.blockTouches = blockTouches;
         this.enabled = true;
         this.isCustom = false;
+        this.isNavigation = false;
         this.isPaused = false;
         this.pausedUntil = 0;
     }

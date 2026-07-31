@@ -27,6 +27,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import net.kollnig.distractionlib.FilterRule;
 import net.kollnig.distractionlib.FrictionGateActivity;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -280,7 +281,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadSettings() {
-        List<FilterRule> rules = config.getRules();
+        // Blocking and navigation rules are kept apart everywhere else -- a navigation rule in
+        // the overlay pipeline would cover the control it needs to click -- but the user thinks
+        // of them as one list of things ReDD Focus does to an app, so they are combined here,
+        // for display only. The adapter dispatches each row back to the store it came from.
+        List<FilterRule> rules = new ArrayList<>(config.getRules());
+        rules.addAll(config.getNavigationRules());
         Log.d("SettingsActivity", "Loading " + rules.size() + " rules");
         for (FilterRule rule : rules) {
             Log.d("SettingsActivity", "Rule for " + rule.packageName + " with description: " + rule.description);

@@ -322,9 +322,29 @@ public class ServiceConfig {
         }
 
         for (FilterRule rule : rules) {
-            rule.enabled = isNavigationRuleEnabled(rule);
+            rule.isNavigation = true;
+            // The app switch in the rules list is the master switch for everything ReDD Focus
+            // does inside that app. Navigation rules are shown under it, so they have to obey
+            // it too -- an app switched off that still moved the user around would be lying.
+            rule.enabled = isNavigationRuleEnabled(rule)
+                    && !isPackageDisabled(rule.packageName);
         }
         return rules;
+    }
+
+    /**
+     * Whether a navigation rule with the same target is already stored, so the picker does not
+     * append a second copy. Compared by identity rather than text: two rules differing only in
+     * their comment share a preference key, so both would be driven by one switch.
+     */
+    public boolean hasNavigationRuleLike(FilterRule rule) {
+        String key = ruleKeySuffix(rule);
+        for (FilterRule existing : getNavigationRules()) {
+            if (ruleKeySuffix(existing).equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String[] getCustomNavigationRules() {

@@ -530,15 +530,61 @@ public class ServiceConfigTest {
     public void setAndGetNavigationRuleEnabled() {
         FilterRule rule = config.getNavigationRules().get(0);
         config.setNavigationRuleEnabled(rule, true);
+        config.setPackageDisabled(rule.packageName, false);
 
         assertTrue(config.isNavigationRuleEnabled(rule));
         for (FilterRule reloaded : config.getNavigationRules()) {
             if (reloaded.identity().equals(rule.identity())) {
                 assertTrue("saved state must survive a reload", reloaded.enabled);
+                assertTrue("navigation rules must be flagged for the UI", reloaded.isNavigation);
                 return;
             }
         }
         fail("rule disappeared from the bundled navigation rules after being enabled");
+    }
+
+    /**
+     * The app switch in the rules list is the master switch for everything ReDD Focus does
+     * inside that app, and navigation rules are now shown underneath it. An app switched off
+     * that still moved the user around would make that switch a lie.
+     */
+    @Test
+    public void navigationRuleObeysThePackageSwitch() {
+        FilterRule rule = config.getNavigationRules().get(0);
+        config.setNavigationRuleEnabled(rule, true);
+        config.setPackageDisabled(rule.packageName, true);
+
+        for (FilterRule reloaded : config.getNavigationRules()) {
+            if (reloaded.identity().equals(rule.identity())) {
+                assertFalse("a disabled package must silence its navigation rules too",
+                        reloaded.enabled);
+                // The user's own choice is remembered, so re-enabling the app restores it.
+                assertTrue(config.isNavigationRuleEnabled(reloaded));
+                return;
+            }
+        }
+        fail("rule disappeared from the bundled navigation rules");
+    }
+
+    @Test
+    public void duplicateNavigationRuleIsDetectedByIdentityNotText() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule sameTargetDifferentComment = createRule(
+                "com.example.app##viewId=com.example.app:id/inbox##comment=Messages");
+
+        // Comment is not part of identity, so these two would share one preference key and
+        // appear as two rows driven by a single switch.
+        assertTrue(config.hasNavigationRuleLike(sameTargetDifferentComment));
+    }
+
+    @Test
+    public void unrelatedNavigationRuleIsNotTreatedAsDuplicate() {
+        config.addCustomNavigationRule("com.example.app##viewId=com.example.app:id/inbox");
+
+        assertFalse(config.hasNavigationRuleLike(
+                createRule("com.example.app##viewId=com.example.app:id/other")));
     }
 
     /**
