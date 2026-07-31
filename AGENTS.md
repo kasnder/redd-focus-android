@@ -61,7 +61,7 @@ The service is the fiddly part of the codebase, and most of the commit history i
 - `OverlayManager` is main-thread-only and synchronous by design — read its class comment before changing it.
 - The element picker suppresses blocking (`shouldProcessRules()` returns false) while it is active, so the user can tap the element they mean. Any new mode that draws its own UI over another app needs the same.
 
-The module seam is a rule, not just a layout. `:distractionlib` is app-agnostic and must not learn about SharedPreferences, notifications or activities: it asks the app through the abstract hooks on `BaseDistractionControlService` (`loadRules()`, `shouldProcessRules()`, `onServiceReady/Teardown()`, `onPauseNotificationShouldShow/Cancel()`), and the app drives it only through the `protected final` helpers (`reloadRulesFromSource()`, `reevaluateBlockingState()`, `clearCurrentOverlays()`). Reaching past that seam in either direction is the thing to avoid.
+The module seam is a rule, not just a layout. `:distractionlib` is app-agnostic and must not learn about SharedPreferences, notifications or activities: it asks the app for those through the hooks on `BaseDistractionControlService`, and the app drives it only through that class's `protected final` helpers. Both sets are declared together at the top of the class — read them there rather than trusting a list here. Reaching past the seam in either direction is the thing to avoid.
 
 ## Conventions and hazards
 
@@ -70,7 +70,7 @@ The module seam is a rule, not just a layout. `:distractionlib` is app-agnostic 
 - Any new path that unblocks something or opens settings goes through `MainActivity.runWithFrictionGate(...)`; a path that skips it quietly defeats the feature for the users who turned it on.
 - User-visible strings belong in `res/values/strings.xml`. If a string names the app, `gmwaylite` needs an override too.
 - Version bumps live in `app/build.gradle` (`versionCode`/`versionName`); store metadata is in `fastlane/metadata/android/`.
-- `LayoutDumper` is debug-only and hard-disabled (`ENABLED = false`). Leave it that way — it prints the contents of other apps' screens.
+- Never log or dump the contents of another app's screen, even behind a debug flag. The service can read every screen the user opens; a dumper existed once and was removed for this reason.
 - Edit the worktree that is actually being built, not another checkout.
 - GPLv3.
 
