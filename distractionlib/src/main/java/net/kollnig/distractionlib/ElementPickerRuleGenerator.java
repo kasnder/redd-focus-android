@@ -57,6 +57,87 @@ public class ElementPickerRuleGenerator {
         return rule.toString();
     }
 
+    /** A selector strong enough to click, together with the wording shown to the user. */
+    public static class NavigationSelector {
+        /** Rule fragment, including its leading {@code ##}. */
+        public final String ruleFragment;
+        public final String description;
+
+        NavigationSelector(String ruleFragment, String description) {
+            this.ruleFragment = ruleFragment;
+            this.description = description;
+        }
+    }
+
+    /**
+     * Picks a selector for an element that will be <em>clicked</em> rather than covered, or
+     * returns null if none of the available ones is good enough.
+     *
+     * <p>The ordering differs from {@link #generateRule} because the failure modes differ. A
+     * blocking rule that matches the wrong element covers the wrong box; a navigation rule that
+     * matches the wrong element taps it. So the weak rungs {@link #generateRule} falls back on
+     * are refused outright here:
+     *
+     * <ul>
+     *   <li>{@code className} would match the first FrameLayout on screen.
+     *   <li>A root-relative {@code path} re-resolves against whatever occupies that position
+     *       after a layout change, which for a tab bar means tapping a different tab.
+     *   <li>{@code text} is not consulted by the navigation matcher at all.
+     * </ul>
+     *
+     * <p>A content description outranks an anchored path here, the reverse of the usual
+     * preference for structure over labels. A description that stops matching produces no click;
+     * a path whose index has shifted produces the wrong one, and silence is the better failure.
+     * Returning null is likewise better than a rule that will one day tap something unintended.
+     */
+    public static NavigationSelector navigationSelector(AccessibilityNodeInfo node,
+                                                        AccessibilityNodeInfo rootNode) {
+        if (node == null) return null;
+
+        String viewId = node.getViewIdResourceName();
+        if (viewId != null && !viewId.isEmpty()) {
+            return new NavigationSelector("##viewId=" + viewId, "View ID: " + viewId);
+        }
+
+        CharSequence desc = node.getContentDescription();
+        if (desc != null && desc.length() > 0) {
+            String value = sanitizeRuleValue(desc.toString()).trim();
+            // A pipe separates alternatives in a desc list, so one inside a description would
+            // parse into two that each match nothing. Fall through rather than emit that.
+            if (!value.isEmpty() && !value.contains("|")) {
+                return new NavigationSelector("##desc=" + value, "Description: " + value);
+            }
+        }
+
+        NodePath anchored = generateAnchoredPath(node, rootNode);
+        if (anchored != null && anchored.anchorViewId != null) {
+            return new NavigationSelector(
+                    "##viewId=" + anchored.anchorViewId + "##childPath=" + anchored.path,
+                    "Path under " + anchored.anchorViewId + ": " + truncate(anchored.path, 40));
+        }
+
+        return null;
+    }
+
+    /**
+     * Builds a navigation rule for an element, or returns null when
+     * {@link #navigationSelector} finds nothing worth clicking.
+     */
+    public static String generateNavigationRule(AccessibilityNodeInfo node,
+                                                AccessibilityNodeInfo rootNode,
+                                                String packageName, String comment) {
+        NavigationSelector selector = navigationSelector(node, rootNode);
+        if (selector == null) {
+            return null;
+        }
+
+        StringBuilder rule = new StringBuilder(packageName).append(selector.ruleFragment);
+        if (comment != null && !comment.isEmpty()) {
+            rule.append("##comment=").append(sanitizeRuleValue(comment));
+        }
+        return rule.toString();
+    }
+
     public static String generatePath(AccessibilityNodeInfo target, AccessibilityNodeInfo rootNode) {
         NodePath result = walkUp(target, rootNode, false, false);
         return result != null ? result.path : null;

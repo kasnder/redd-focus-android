@@ -514,4 +514,224 @@ public class ServiceConfigTest {
                 + "if none remain, migrationCarriesOverBuiltInStateAcrossEditedRuleText "
                 + "no longer proves the snapshot is doing anything", sawEditedRule);
     }
+
+    // --- Navigation rules ---
+
+    @Test
+    public void navigationRulesAreOffByDefault() {
+        List<FilterRule> rules = config.getNavigationRules();
+        assertFalse("expected bundled navigation rules", rules.isEmpty());
+        for (FilterRule rule : rules) {
+            assertFalse("navigation must be opt-in: " + rule.ruleString, rule.enabled);
+        }
+    }
+
+    @Test
+    public void setAndGetNavigationRuleEnabled() {
+        FilterRule rule = config.getNavigationRules().get(0);
+        config.setNavigationRuleEnabled(rule, true);
+        config.setPackageDisabled(rule.packageName, false);
+
+        assertTrue(config.isNavigationRuleEnabled(rule));
+        for (FilterRule reloaded : config.getNavigationRules()) {
+            if (reloaded.identity().equals(rule.identity())) {
+                assertTrue("saved state must survive a reload", reloaded.enabled);
+                assertTrue("navigation rules must be flagged for the UI", reloaded.isNavigation);
+                return;
+            }
+        }
+        fail("rule disappeared from the bundled navigation rules after being enabled");
+    }
+
+    /**
+     * The app switch in the rules list is the master switch for everything ReDD Focus does
+     * inside that app, and navigation rules are now shown underneath it. An app switched off
+     * that still moved the user around would make that switch a lie.
+     */
+    @Test
+    public void navigationRuleObeysThePackageSwitch() {
+        FilterRule rule = config.getNavigationRules().get(0);
+        config.setNavigationRuleEnabled(rule, true);
+        config.setPackageDisabled(rule.packageName, true);
+
+        for (FilterRule reloaded : config.getNavigationRules()) {
+            if (reloaded.identity().equals(rule.identity())) {
+                assertFalse("a disabled package must silence its navigation rules too",
+                        reloaded.enabled);
+                // The user's own choice is remembered, so re-enabling the app restores it.
+                assertTrue(config.isNavigationRuleEnabled(reloaded));
+                return;
+            }
+        }
+        fail("rule disappeared from the bundled navigation rules");
+    }
+
+    @Test
+    public void duplicateNavigationRuleIsDetectedByIdentityNotText() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule sameTargetDifferentComment = createRule(
+                "com.example.app##viewId=com.example.app:id/inbox##comment=Messages");
+
+        // Comment is not part of identity, so these two would share one preference key and
+        // appear as two rows driven by a single switch.
+        assertTrue(config.hasNavigationRuleLike(sameTargetDifferentComment));
+    }
+
+    @Test
+    public void unrelatedNavigationRuleIsNotTreatedAsDuplicate() {
+        config.addCustomNavigationRule("com.example.app##viewId=com.example.app:id/inbox");
+
+        assertFalse(config.hasNavigationRuleLike(
+                createRule("com.example.app##viewId=com.example.app:id/other")));
+    }
+
+    /**
+     * Navigation state is keyed separately from blocking state. The two rule sets can name the
+     * same element -- hiding Instagram's inbox tab and opening it are both plausible -- and
+     * sharing a key would make enabling one silently enable the other.
+     */
+    @Test
+    public void navigationStateIsIndependentOfBlockingState() {
+        FilterRule navRule = config.getNavigationRules().get(0);
+        FilterRule blockingRule = createRule(navRule.ruleString);
+
+        config.setNavigationRuleEnabled(navRule, true);
+
+        assertTrue(config.isNavigationRuleEnabled(navRule));
+        assertFalse(config.isRuleEnabled(blockingRule));
+    }
+
+    /**
+     * A navigation rule must reach the service's own pipeline and no other. Landing in
+     * {@link ServiceConfig#getRules()} would paint an overlay across the control it needs to
+     * click, which is the one outcome that would make the feature block itself.
+     */
+    @Test
+    public void navigationRulesStayOutOfTheBlockingRuleSet() {
+        Set<String> blocking = new HashSet<>();
+        for (FilterRule rule : config.getRules()) {
+            blocking.add(rule.ruleString);
+        }
+        for (FilterRule rule : config.getNavigationRules()) {
+            assertFalse("navigation rule leaked into the blocking rules: " + rule.ruleString,
+                    blocking.contains(rule.ruleString));
+        }
+    }
+
+    @Test
+    public void enablingAPackageRestoresNavigationRulesFromTheirOwnPreferenceSpace() {
+        String packageName = "com.example.navigation";
+        String ruleString = packageName + "##viewId=" + packageName + ":id/inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule navigationRule = null;
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                navigationRule = rule;
+                break;
+            }
+        }
+        assertNotNull(navigationRule);
+        FilterRule blockingRule = createRule(ruleString);
+
+        config.setNavigationRuleEnabled(navigationRule, true);
+        config.setRuleEnabled(blockingRule, false);
+        config.setPackageDisabled(packageName, true);
+
+        List<FilterRule> rules = new ArrayList<>();
+        rules.add(blockingRule);
+        rules.add(navigationRule);
+        config.enablePackageRules(packageName, rules);
+
+        assertFalse("the blocking preference remains separate", blockingRule.enabled);
+        assertTrue("the navigation preference is restored", navigationRule.enabled);
+    }
+
+    @Test
+    public void enablingAPackageForTheFirstTimePersistsNavigationRules() {
+        String packageName = "com.example.firstnavigation";
+        String ruleString = packageName + "##viewId=" + packageName + ":id/inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        FilterRule navigationRule = null;
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                navigationRule = rule;
+                break;
+            }
+        }
+        assertNotNull(navigationRule);
+
+        config.enablePackageRules(packageName, java.util.Collections.singletonList(navigationRule));
+
+        assertTrue(navigationRule.enabled);
+        assertTrue("a reload must keep the rule enabled",
+                config.isNavigationRuleEnabled(navigationRule));
+    }
+
+    // --- Custom navigation rules (element picker) ---
+
+    @Test
+    public void customNavigationRuleIsAddedAndMarkedCustom() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox";
+        config.addCustomNavigationRule(ruleString);
+
+        for (FilterRule rule : config.getNavigationRules()) {
+            if (ruleString.equals(rule.ruleString)) {
+                assertTrue("picker rules must be marked custom", rule.isCustom);
+                return;
+            }
+        }
+        fail("custom navigation rule did not come back from getNavigationRules()");
+    }
+
+    @Test
+    public void customNavigationRuleCanBeRemoved() {
+        String ruleString = "com.example.app##viewId=com.example.app:id/inbox";
+        config.addCustomNavigationRule(ruleString);
+        config.removeCustomNavigationRule(ruleString);
+
+        assertNull(config.getCustomNavigationRules());
+        for (FilterRule rule : config.getNavigationRules()) {
+            assertNotEquals(ruleString, rule.ruleString);
+        }
+    }
+
+    /**
+     * The picker writes navigation rules to their own store. Sharing one with blocking rules
+     * would make "open this on launch" also hide the element it needs to click.
+     */
+    @Test
+    public void customNavigationRulesAreSeparateFromCustomBlockingRules() {
+        String navRule = "com.example.app##viewId=com.example.app:id/inbox";
+        config.addCustomNavigationRule(navRule);
+
+        assertNull("navigation rules must not leak into the blocking store",
+                config.getCustomRules());
+        for (FilterRule rule : config.getRules()) {
+            assertNotEquals(navRule, rule.ruleString);
+        }
+    }
+
+    @Test
+    public void bundledNavigationRulesSurviveAddingACustomOne() {
+        int bundled = config.getNavigationRules().size();
+        config.addCustomNavigationRule("com.example.app##viewId=com.example.app:id/inbox");
+
+        assertEquals(bundled + 1, config.getNavigationRules().size());
+    }
+
+    @Test
+    public void everyNavigationRuleHasATargetAndALabel() {
+        for (FilterRule rule : config.getNavigationRules()) {
+            boolean hasTarget = (rule.targetViewId != null && !rule.targetViewId.isEmpty())
+                    || !rule.contentDescriptions.isEmpty();
+            assertTrue("no viewId or desc to click: " + rule.ruleString, hasTarget);
+            // The settings dialog lists rules by app and comment, so a blank one is unusable.
+            assertNotNull("no comment: " + rule.ruleString, rule.description);
+            assertFalse("blank comment: " + rule.ruleString, rule.description.trim().isEmpty());
+        }
+    }
 }

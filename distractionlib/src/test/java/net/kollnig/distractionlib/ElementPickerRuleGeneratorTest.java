@@ -320,4 +320,110 @@ public class ElementPickerRuleGeneratorTest {
 
         assertEquals("com.example##viewId=com.example:id/item", rule);
     }
+
+    // --- Navigation selectors ---
+    //
+    // These are held to a stricter standard than blocking selectors: a blocking rule that
+    // drifts covers the wrong box, a navigation rule that drifts taps it.
+
+    @Test
+    public void navigationRulePrefersViewId() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn("com.example:id/direct_tab");
+        when(node.getContentDescription()).thenReturn("Message");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", "Open messages");
+
+        assertEquals("com.example##viewId=com.example:id/direct_tab##comment=Open messages", rule);
+    }
+
+    @Test
+    public void navigationRuleFallsBackToContentDescription() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn(null);
+        when(node.getContentDescription()).thenReturn("Message");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null);
+
+        assertEquals("com.example##desc=Message", rule);
+    }
+
+    /**
+     * A pipe separates alternatives in a desc list, so emitting one inside a description would
+     * produce two alternatives that each match nothing.
+     */
+    @Test
+    public void navigationRuleRejectsDescriptionContainingPipe() {
+        // A real node, not a mock: with no usable description the generator falls through to
+        // the anchored-path rung, which walks the tree and cannot run against a mock.
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setContentDescription("Chats | Updates");
+
+        assertNull(ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null));
+    }
+
+    @Test
+    public void navigationRuleUsesAnchoredPathWhenNothingElseIdentifiesTheElement() {
+        AccessibilityNodeInfo anchor = child(rootNode, "android.widget.LinearLayout");
+        anchor.setViewIdResourceName("com.example:id/tab_bar");
+        AccessibilityNodeInfo tab = child(anchor, "android.widget.Button");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                tab, rootNode, "com.example", null);
+
+        assertEquals("com.example##viewId=com.example:id/tab_bar"
+                + "##childPath=android.widget.Button[0]", rule);
+    }
+
+    /**
+     * className would match the first container on screen and a root-relative path re-resolves
+     * against whatever later occupies that position. Neither is safe to click, so the picker
+     * refuses instead of generating a rule that will one day tap the wrong thing.
+     */
+    @Test
+    public void navigationRuleRefusesWhenOnlyClassNameIsAvailable() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setClassName("android.widget.FrameLayout");
+
+        assertNull(ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null));
+        assertNull(ElementPickerRuleGenerator.navigationSelector(node, rootNode));
+    }
+
+    @Test
+    public void navigationRuleRefusesTextOnlyElements() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        node.setText("Favourites");
+
+        // The navigation matcher never consults text, so a text rule would silently never fire.
+        assertNull(ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", null));
+    }
+
+    @Test
+    public void navigationRuleStripsSeparatorFromComment() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn("com.example:id/tab");
+
+        String rule = ElementPickerRuleGenerator.generateNavigationRule(
+                node, rootNode, "com.example", "a##b");
+
+        assertEquals("com.example##viewId=com.example:id/tab##comment=ab", rule);
+    }
+
+    @Test
+    public void navigationSelectorDescribesWhatMatched() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getViewIdResourceName()).thenReturn(null);
+        when(node.getContentDescription()).thenReturn("Message");
+
+        ElementPickerRuleGenerator.NavigationSelector selector =
+                ElementPickerRuleGenerator.navigationSelector(node, rootNode);
+
+        assertNotNull(selector);
+        assertEquals("Description: Message", selector.description);
+    }
 }

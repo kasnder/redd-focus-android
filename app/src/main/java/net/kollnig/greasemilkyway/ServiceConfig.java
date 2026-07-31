@@ -31,7 +31,15 @@ public class ServiceConfig {
     private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
     private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
     private static final String KEY_PREFS_VERSION = "prefs_version";
+    /**
+     * Navigation rules get their own key space. They are matched like blocking rules and so
+     * can share an identity with one, but they are a separate opt-in: enabling "hide the feed"
+     * must not silently also start moving the user to another screen.
+     */
+    public static final String KEY_NAVIGATION_RULE_ENABLED = "nav_rule_enabled_";
+    private static final String KEY_CUSTOM_NAVIGATION_RULES = "custom_navigation_rules";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
+    private static final String NAVIGATION_RULES_FILE = "navigation_rules.txt";
     /**
      * The bundled rules as shipped by the last release that used legacy
      * preference keys. Frozen; see the file's own header.
@@ -284,6 +292,157 @@ public class ServiceConfig {
         }
 
         return rules;
+    }
+
+    /**
+     * The bundled navigation rules, each carrying its saved on/off state.
+     *
+     * <p>Not folded into {@link #getRules()}: those drive overlays, and a navigation rule that
+     * reached that pipeline would paint a box over the very control it needs to click. Nor is
+     * it gated on {@link #isPackageDisabled}, which governs blocking -- someone who wants
+     * WhatsApp to open on a chat list has not thereby asked for anything to be hidden.
+     */
+    public List<FilterRule> getNavigationRules() {
+        List<FilterRule> rules = new ArrayList<>();
+
+        List<String> lines = readAssetLines(NAVIGATION_RULES_FILE);
+        if (lines != null && !lines.isEmpty()) {
+            rules.addAll(ruleParser.parseRules(lines.toArray(new String[0])));
+        }
+
+        // Rules the user built with the element picker. Appended rather than merged: a failed
+        // asset read must not take the user's own rules down with it.
+        String[] custom = getCustomNavigationRules();
+        if (custom != null) {
+            List<FilterRule> parsed = ruleParser.parseRules(custom);
+            for (FilterRule rule : parsed) {
+                rule.isCustom = true;
+            }
+            rules.addAll(parsed);
+        }
+
+        for (FilterRule rule : rules) {
+            rule.isNavigation = true;
+            // The app switch in the rules list is the master switch for everything ReDD Focus
+            // does inside that app. Navigation rules are shown under it, so they have to obey
+            // it too -- an app switched off that still moved the user around would be lying.
+            rule.enabled = isNavigationRuleEnabled(rule)
+                    && !isPackageDisabled(rule.packageName);
+        }
+        return rules;
+    }
+
+    /**
+     * Whether a navigation rule with the same target is already stored, so the picker does not
+     * append a second copy. Compared by identity rather than text: two rules differing only in
+     * their comment share a preference key, so both would be driven by one switch.
+     */
+    public boolean hasNavigationRuleLike(FilterRule rule) {
+        String key = ruleKeySuffix(rule);
+        for (FilterRule existing : getNavigationRules()) {
+            if (ruleKeySuffix(existing).equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public String[] getCustomNavigationRules() {
+        String rules = prefs.getString(KEY_CUSTOM_NAVIGATION_RULES, "");
+        return rules.isEmpty() ? null : rules.split("\n");
+    }
+
+    public void addCustomNavigationRule(String ruleString) {
+        String existing = prefs.getString(KEY_CUSTOM_NAVIGATION_RULES, "");
+        String updated = existing.isEmpty() ? ruleString : existing + "\n" + ruleString;
+        prefs.edit().putString(KEY_CUSTOM_NAVIGATION_RULES, updated).apply();
+    }
+
+    /** Removes the first custom navigation rule matching the given text exactly. */
+    public void removeCustomNavigationRule(String ruleString) {
+        String[] existing = getCustomNavigationRules();
+        if (existing == null) return;
+
+        List<String> updated = new ArrayList<>();
+        boolean removed = false;
+        for (String rule : existing) {
+            if (!removed && rule.equals(ruleString)) {
+                removed = true;
+                continue;
+            }
+            updated.add(rule);
+        }
+
+        if (removed) {
+            prefs.edit()
+                    .putString(KEY_CUSTOM_NAVIGATION_RULES, String.join("\n", updated))
+                    .apply();
+        }
+    }
+
+    public boolean isNavigationRuleEnabled(FilterRule rule) {
+        // Opt-in, like blocking rules: nothing starts moving the user around unasked.
+        return prefs.getBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), false);
+    }
+
+    public void setNavigationRuleEnabled(FilterRule rule, boolean enabled) {
+        prefs.edit()
+                .putBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), enabled)
+                .apply();
+    }
+
+    /**
+     * Enables a package and restores the per-rule state shown underneath it.
+     *
+     * <p>Blocking and navigation rules share a display list but have independent preference
+     * namespaces. Keeping the restore here prevents the app switch from accidentally reading
+     * a navigation rule through the blocking key (or writing its first enabled state there).
+     */
+    public void enablePackageRules(String packageName, List<FilterRule> packageRules) {
+        setPackageDisabled(packageName, false);
+        setPackagePausedUntil(packageName, 0);
+
+        boolean hasSavedState = false;
+        for (FilterRule rule : packageRules) {
+            if (packageName.equals(rule.packageName) && hasSavedEnabledState(rule)) {
+                hasSavedState = true;
+                break;
+            }
+        }
+
+        for (FilterRule rule : packageRules) {
+            if (!packageName.equals(rule.packageName)) {
+                continue;
+            }
+            rule.isPaused = false;
+            rule.pausedUntil = 0;
+            if (hasSavedState) {
+                rule.enabled = isSavedEnabled(rule);
+            } else {
+                rule.enabled = true;
+                setSavedEnabled(rule, true);
+            }
+            if (!rule.isNavigation) {
+                setRulePausedUntil(rule, 0);
+            }
+        }
+    }
+
+    private boolean hasSavedEnabledState(FilterRule rule) {
+        return prefs.contains((rule.isNavigation ? KEY_NAVIGATION_RULE_ENABLED : KEY_RULE_ENABLED)
+                + ruleKeySuffix(rule));
+    }
+
+    private boolean isSavedEnabled(FilterRule rule) {
+        return rule.isNavigation ? isNavigationRuleEnabled(rule) : isRuleEnabled(rule);
+    }
+
+    private void setSavedEnabled(FilterRule rule, boolean enabled) {
+        if (rule.isNavigation) {
+            setNavigationRuleEnabled(rule, enabled);
+        } else {
+            setRuleEnabled(rule, enabled);
+        }
     }
 
     public int getFrictionWordCount() {

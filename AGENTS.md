@@ -1,8 +1,10 @@
 # ReDD Focus agent guide
 
-This file holds the constraints and judgement calls that cannot be discovered by reading the tree. Module layout, class responsibilities and call paths are faster to learn by exploring the code, so they are not mapped here. The rule format is documented for users in [docs/CUSTOM_RULES.md](docs/CUSTOM_RULES.md) and defined by `FilterRuleParser` — read one of those rather than trusting a copy.
+**Only what the code cannot tell you belongs here.** You can read the tree; assume the next agent can too. Module layout, class responsibilities, call paths, which method does what, what a field is named — all of that is a tool call away and is deliberately *not* recorded here, because a description of the code is worse than the code: it goes stale silently and gets believed anyway.
 
-Amend this file when you hit a hazard the next agent would not know to go looking for; resist letting it grow into a description of the code.
+What survives that test is roughly three things: an invariant that is load-bearing but invisible at the call site, a hazard that has already caused a bug, and a judgement call whose reasoning left no trace in the source. Before adding a line, ask whether an agent with this repo in front of it would get this wrong without being told. If it would not, delete the line. If it would, say the *why* in one sentence and trust it to find the *what*.
+
+The rule format is documented for users in [docs/CUSTOM_RULES.md](docs/CUSTOM_RULES.md) and defined by `FilterRuleParser` — read one of those rather than trusting a copy.
 
 ## Who this serves
 
@@ -45,9 +47,21 @@ Narrow to one class with `--tests 'net.kollnig.distractionlib.FilterRuleParserTe
 - Rules are **opt-in**: `isPackageDisabled` defaults to `true` and `isRuleEnabled` to `false`. Nothing is blocked until the user asks for it.
 - Saved state is keyed on `FilterRule.identity()` — the matching fields (`viewId`, `desc`, `path`, `className`, `text`, `blockTouches`) plus the package — not on the rule text, even though `FilterRule.equals`/`hashCode` are. So `comment`, `category` and `color` are free to edit, but **changing a matching field of a shipped rule silently orphans every user's saved state for it**, switching their block off with no error. Treat it as a migration, not an edit.
 - `assets/legacy_rules_v0.txt` is a frozen copy of the 0.9.1 rules per flavour, needed because pre-migration keys (`ServiceConfig.migrateRuleKeys()`) hash the rule *text* and can only be recomputed from the text that shipped. **Never edit a snapshot.** If `PREFS_VERSION` is bumped again, add a new one. `ServiceConfigTest.everySnapshotRuleStillExistsInTheBundledRules` is the guard.
-- Rules in one package sharing a `comment` render as a single row (`RulesAdapter.mergeRules`) and are enabled, paused and disabled as a unit — that is how one user-facing switch is backed by several sibling rules. Merging ignores `category` and never merges comment-less rules.
+- Rules in one package sharing a `comment` render as a single row (`RulesAdapter.mergeRules`) and are enabled, paused and disabled as a unit — that is how one user-facing switch is backed by several sibling rules. Merging ignores `category` and never merges comment-less rules, nor across the custom/built-in or navigation/blocking boundaries.
 - Anchor a rule in structure, not in words. `viewId` and `path` survive; `desc`, `text` and `className` are translated or re-themed and break for every user outside the locale the rule was written in. Contributed rules should not depend on them.
 - A pause is a timestamp, not a flag. `ServiceConfig.getRules()` resolves expired pauses as a side effect (re-enabling the rule and writing back), and `DistractionControlService.scheduleNextRuleUpdate()` posts a reload for the nearest expiry so blocking resumes without the user acting. Both halves matter: without the reload, a pause quietly never ends.
+- `RulesAdapter.java` contains a literal NUL byte in the merge key's separator, so `file` reports the source as binary and **`grep` silently matches nothing in it** — use `Read` or `grep -a`, or you will conclude a symbol is absent when it is right there.
+
+## Navigation rules ("Open on launch")
+
+Where the distraction *is* the landing screen there is nothing to cover, so entering the app clicks an element instead. Two habits from the blocking pipeline are actively wrong here:
+
+- **A wrong match has side effects.** A blocking rule that stops matching fails visibly and harmlessly — the content reappears. A navigation rule that matches the wrong element taps it. So refusing to act beats acting on a guess: the matcher accepts only `viewId`, `viewId`+`childPath` and `desc`, and rule generation returns null rather than fall back past them. A navigation rule written with `text`, `path` or `className` parses fine and then silently never fires.
+- **Labels beat structure here**, inverting the guidance above. A `desc` that stops matching produces no click; a path whose index has shifted produces the *wrong* one.
+- A navigation rule must never reach the overlay pipeline — it would paint a box over the control it needs to click. The two rule sets meet only in the display list.
+- **Firing once per visit is the point.** Navigating on every pass would throw the user out of the feed every time they deliberately went back to it. Hence also that the service adopts the foreground app on connect *without* arming: the service reconnecting is not the user opening the app.
+- Navigation retries on a timer because the target does not exist for the first few frames after launch, and clicks walk up a few ancestors because apps label the icon but attach the listener to a wrapper above it. Both look redundant and are not.
+- Testing hazard: `uiautomator dump` takes over accessibility and restarts this service — which *is* the mid-session jump you would be trying to observe. Prefer `screencap` for anything spanning a visit. `adb shell am force-stop` on this app disables the accessibility service, and only the user can switch it back on.
 
 ## Accessibility service invariants
 
@@ -65,7 +79,7 @@ The module seam is a rule, not just a layout. `:distractionlib` is app-agnostic 
 
 ## Conventions and hazards
 
-- Built-in rules live in `app/src/main/assets/distraction_rules.txt`, one per line, always with a `category` and a `comment` — both are shown in the UI, which groups by package and then category.
+- Built-in rules live in `app/src/main/assets/distraction_rules.txt`, one per line, always with a `category` and a `comment` — both are shown in the UI, which groups by package and then category. Rules that *open* a screen rather than hide one go in `navigation_rules.txt` instead.
 - A new rule's target package must be added to `<queries>` in `AndroidManifest.xml`, or the package label lookup silently fails on API 30+.
 - Any new path that unblocks something or opens settings goes through `MainActivity.runWithFrictionGate(...)`; a path that skips it quietly defeats the feature for the users who turned it on.
 - User-visible strings belong in `res/values/strings.xml`. If a string names the app, `gmwaylite` needs an override too.

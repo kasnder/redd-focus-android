@@ -93,6 +93,9 @@
     <string name="picker_block">✓ Block</string>
     <string name="picker_block_all">✓ Block All</string>
     <string name="picker_confirm_all_title">Block all elements like this?</string>
+    <string name="picker_open">→ Open</string>
+    <string name="picker_confirm_open_title">Open this when the app starts?</string>
+    <string name="picker_open_unsupported">This element has no ID or description, so it cannot be opened reliably. Try Shallower to pick the button around it.</string>
     <string name="picker_cancel">✕ Cancel</string>
     <string name="picker_move">↕ Move</string>
     <string name="picker_no_element">No element found at this position</string>
@@ -153,4 +156,7 @@
     <string name="response_speed_immediate">Immediate response</string>
     <string name="response_speed_default">Default</string>
     <string name="response_speed_battery_saver">Battery saver</string>
+
+    <!-- Section heading for rules that open a screen rather than hide one -->
+    <string name="auto_navigation_title">Open on launch</string>
 </resources>

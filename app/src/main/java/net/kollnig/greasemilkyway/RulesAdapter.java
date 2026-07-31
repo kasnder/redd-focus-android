@@ -293,35 +293,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                     return;
                 }
 
-                config.setPackageDisabled(packageName, false);
-                config.setPackagePausedUntil(packageName, 0);
-
-                // Restore each rule's saved enabled state from SharedPreferences.
-                // In-memory state was set to false for UI during disable, but prefs were
-                // intentionally preserved, so this correctly restores individual selections.
-                // If no rule has ever been explicitly saved (first-time enable), enable all.
-                boolean anyRuleSavedEnabled = false;
-                for (FilterRule rule : currentRules) {
-                    if (rule.packageName.equals(packageName) && config.isRuleEnabled(rule)) {
-                        anyRuleSavedEnabled = true;
-                        break;
-                    }
-                }
-                for (FilterRule rule : currentRules) {
-                    if (rule.packageName.equals(packageName)) {
-                        rule.isPaused = false;
-                        rule.pausedUntil = 0;
-                        if (anyRuleSavedEnabled) {
-                            // Restore the individually saved state
-                            rule.enabled = config.isRuleEnabled(rule);
-                        } else {
-                            // First-time enable: turn everything on
-                            rule.enabled = true;
-                            config.setRuleEnabled(rule, true);
-                            config.setRulePausedUntil(rule, 0);
-                        }
-                    }
-                }
+                config.enablePackageRules(packageName, currentRules);
 
                 // Rebuild to show/hide rules
                 rebuildItemsList();
@@ -406,21 +378,26 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                             viewHolder.ruleSwitch.setChecked(true); // Revert visually
 
                             if (context instanceof MainActivity) {
-                                ((MainActivity) context).runWithFrictionGate("Disable Rule",
-                                        () -> showPauseDialog(currentParts.get(0).packageName, currentParts));
+                                // Pausing is a blocking-rule notion -- it exists so hidden
+                                // content can be let through for a while. There is nothing to
+                                // let through here, so switching off is the only option.
+                                Runnable disable = isNavigationRow(currentParts)
+                                        ? () -> {
+                                            setRowEnabled(currentParts, false);
+                                            rebuildItemsList();
+                                            notifyService();
+                                        }
+                                        : () -> showPauseDialog(
+                                                currentParts.get(0).packageName, currentParts);
+                                ((MainActivity) context)
+                                        .runWithFrictionGate("Disable Rule", disable);
                             }
                             return;
                         }
 
                         // Every part of the row moves together, so a row can
                         // never end up half applied.
-                        for (FilterRule part : currentParts) {
-                            part.enabled = true;
-                            part.isPaused = false;
-                            part.pausedUntil = 0;
-                            config.setRuleEnabled(part, true);
-                            config.setRulePausedUntil(part, 0);
-                        }
+                        setRowEnabled(currentParts, true);
 
                         // Rebuild to update the package switch UI, showing rules, and updated counts
                         rebuildItemsList();
@@ -448,12 +425,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                                 .setTitle(R.string.delete_rule_title)
                                 .setMessage(R.string.delete_rule_message)
                                 .setPositiveButton(R.string.delete_rule_confirm, (dialog, which) -> {
-                                    for (FilterRule part : parts) {
-                                        config.removeCustomRule(part.ruleString);
-
-                                        // Clean up the current rules list
-                                        currentRules.remove(part);
-                                    }
+                                    removeCustomRow(parts);
 
                                     // Check if we need to disable the package if it was the last rule
                                     boolean anyRulesStillEnabled = false;
@@ -607,6 +579,40 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 .show();
     }
 
+    /**
+     * Writes a row's on/off state to whichever store it came from. Navigation and blocking
+     * rules can share an identity -- hiding Instagram's inbox tab and opening it name the same
+     * element -- so the target store is chosen by the rule, never by its key.
+     */
+    private void setRowEnabled(List<FilterRule> parts, boolean enabled) {
+        for (FilterRule part : parts) {
+            part.enabled = enabled;
+            if (part.isNavigation) {
+                config.setNavigationRuleEnabled(part, enabled);
+            } else {
+                part.isPaused = false;
+                part.pausedUntil = 0;
+                config.setRuleEnabled(part, enabled);
+                config.setRulePausedUntil(part, 0);
+            }
+        }
+    }
+
+    private void removeCustomRow(List<FilterRule> parts) {
+        for (FilterRule part : parts) {
+            if (part.isNavigation) {
+                config.removeCustomNavigationRule(part.ruleString);
+            } else {
+                config.removeCustomRule(part.ruleString);
+            }
+            currentRules.remove(part);
+        }
+    }
+
+    static boolean isNavigationRow(List<FilterRule> row) {
+        return !row.isEmpty() && row.get(0).isNavigation;
+    }
+
     private void notifyService() {
         DistractionControlService service = DistractionControlService.getInstance();
         if (service != null) {
@@ -633,6 +639,11 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
      * comment: a mixed row can't be deleted (the delete path requires every
      * part to be custom) and toggling it would silently flip the user's own
      * rule along with the built-in one.
+     *
+     * <p>Navigation rules never merge with blocking ones for the same reason
+     * squared: the two are stored under different preference keys, so a mixed
+     * row's switch would have to write to both stores at once, and deleting it
+     * would have to remove from both.
      */
     static List<List<FilterRule>> mergeRules(List<FilterRule> rules) {
         List<List<FilterRule>> rows = new ArrayList<>();
@@ -645,7 +656,7 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
                 rows.add(row);
                 continue;
             }
-            String key = rule.isCustom + " " + comment;
+            String key = rule.isCustom + " " + rule.isNavigation + " " + comment;
             List<FilterRule> row = byComment.get(key);
             if (row == null) {
                 row = new ArrayList<>();
@@ -675,6 +686,13 @@ public class RulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
     }
 
     private String getRuleGroup(FilterRule rule) {
+        // Forced rather than taken from the rule text: picker-built navigation rules carry no
+        // category, and scattering them under "Custom rules" alongside things that hide would
+        // lose the one distinction that matters here -- these act on the app, they do not
+        // merely hide part of it.
+        if (rule.isNavigation) {
+            return context.getString(R.string.auto_navigation_title);
+        }
         if (rule.category != null && !rule.category.trim().isEmpty()) {
             return rule.category.trim();
         }
