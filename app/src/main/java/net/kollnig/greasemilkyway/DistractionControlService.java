@@ -51,6 +51,14 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     @Override
+    protected List<FilterRule> loadNavigationRules() {
+        if (config == null) {
+            config = new ServiceConfig(this);
+        }
+        return config.getNavigationRules();
+    }
+
+    @Override
     protected boolean shouldProcessRules() {
         return pickerOverlay == null || !pickerOverlay.isActive();
     }

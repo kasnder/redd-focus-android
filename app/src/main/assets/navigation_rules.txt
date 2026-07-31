@@ -1,0 +1,7 @@
+// Screens to open as soon as an app is entered, so the landing screen is never the feed.
+// Same syntax as distraction_rules.txt, but the matched element is clicked instead of covered,
+// and only viewId and desc are used to find it. Prefer viewId: it survives translation, which
+// matters here because these targets are tab bars and filter chips whose labels are localised.
+// Each rule fires once per visit -- navigating back afterwards is left to the user.
+com.instagram.android##viewId=com.instagram.android:id/direct_tab##category=Open on launch##comment=Open Messages instead of the feed
+com.whatsapp##viewId=com.whatsapp:id/conversations_filter_debug_view_id_favorite##category=Open on launch##comment=Open the Favourites list instead of all chats

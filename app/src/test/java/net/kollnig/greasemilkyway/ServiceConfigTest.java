@@ -514,4 +514,75 @@ public class ServiceConfigTest {
                 + "if none remain, migrationCarriesOverBuiltInStateAcrossEditedRuleText "
                 + "no longer proves the snapshot is doing anything", sawEditedRule);
     }
+
+    // --- Navigation rules ---
+
+    @Test
+    public void navigationRulesAreOffByDefault() {
+        List<FilterRule> rules = config.getNavigationRules();
+        assertFalse("expected bundled navigation rules", rules.isEmpty());
+        for (FilterRule rule : rules) {
+            assertFalse("navigation must be opt-in: " + rule.ruleString, rule.enabled);
+        }
+    }
+
+    @Test
+    public void setAndGetNavigationRuleEnabled() {
+        FilterRule rule = config.getNavigationRules().get(0);
+        config.setNavigationRuleEnabled(rule, true);
+
+        assertTrue(config.isNavigationRuleEnabled(rule));
+        for (FilterRule reloaded : config.getNavigationRules()) {
+            if (reloaded.identity().equals(rule.identity())) {
+                assertTrue("saved state must survive a reload", reloaded.enabled);
+                return;
+            }
+        }
+        fail("rule disappeared from the bundled navigation rules after being enabled");
+    }
+
+    /**
+     * Navigation state is keyed separately from blocking state. The two rule sets can name the
+     * same element -- hiding Instagram's inbox tab and opening it are both plausible -- and
+     * sharing a key would make enabling one silently enable the other.
+     */
+    @Test
+    public void navigationStateIsIndependentOfBlockingState() {
+        FilterRule navRule = config.getNavigationRules().get(0);
+        FilterRule blockingRule = createRule(navRule.ruleString);
+
+        config.setNavigationRuleEnabled(navRule, true);
+
+        assertTrue(config.isNavigationRuleEnabled(navRule));
+        assertFalse(config.isRuleEnabled(blockingRule));
+    }
+
+    /**
+     * A navigation rule must reach the service's own pipeline and no other. Landing in
+     * {@link ServiceConfig#getRules()} would paint an overlay across the control it needs to
+     * click, which is the one outcome that would make the feature block itself.
+     */
+    @Test
+    public void navigationRulesStayOutOfTheBlockingRuleSet() {
+        Set<String> blocking = new HashSet<>();
+        for (FilterRule rule : config.getRules()) {
+            blocking.add(rule.ruleString);
+        }
+        for (FilterRule rule : config.getNavigationRules()) {
+            assertFalse("navigation rule leaked into the blocking rules: " + rule.ruleString,
+                    blocking.contains(rule.ruleString));
+        }
+    }
+
+    @Test
+    public void everyNavigationRuleHasATargetAndALabel() {
+        for (FilterRule rule : config.getNavigationRules()) {
+            boolean hasTarget = (rule.targetViewId != null && !rule.targetViewId.isEmpty())
+                    || !rule.contentDescriptions.isEmpty();
+            assertTrue("no viewId or desc to click: " + rule.ruleString, hasTarget);
+            // The settings dialog lists rules by app and comment, so a blank one is unusable.
+            assertNotNull("no comment: " + rule.ruleString, rule.description);
+            assertFalse("blank comment: " + rule.ruleString, rule.description.trim().isEmpty());
+        }
+    }
 }

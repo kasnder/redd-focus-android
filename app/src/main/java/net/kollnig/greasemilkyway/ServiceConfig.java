@@ -31,7 +31,14 @@ public class ServiceConfig {
     private static final String KEY_PAUSE_DURATION_MINS = "pause_duration_mins";
     private static final String KEY_NOTIFICATION_TIMEOUT_MS = "notification_timeout_ms";
     private static final String KEY_PREFS_VERSION = "prefs_version";
+    /**
+     * Navigation rules get their own key space. They are matched like blocking rules and so
+     * can share an identity with one, but they are a separate opt-in: enabling "hide the feed"
+     * must not silently also start moving the user to another screen.
+     */
+    public static final String KEY_NAVIGATION_RULE_ENABLED = "nav_rule_enabled_";
     private static final String DEFAULT_RULES_FILE = "distraction_rules.txt";
+    private static final String NAVIGATION_RULES_FILE = "navigation_rules.txt";
     /**
      * The bundled rules as shipped by the last release that used legacy
      * preference keys. Frozen; see the file's own header.
@@ -284,6 +291,37 @@ public class ServiceConfig {
         }
 
         return rules;
+    }
+
+    /**
+     * The bundled navigation rules, each carrying its saved on/off state.
+     *
+     * <p>Not folded into {@link #getRules()}: those drive overlays, and a navigation rule that
+     * reached that pipeline would paint a box over the very control it needs to click. Nor is
+     * it gated on {@link #isPackageDisabled}, which governs blocking -- someone who wants
+     * WhatsApp to open on a chat list has not thereby asked for anything to be hidden.
+     */
+    public List<FilterRule> getNavigationRules() {
+        List<String> lines = readAssetLines(NAVIGATION_RULES_FILE);
+        if (lines == null || lines.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<FilterRule> rules = ruleParser.parseRules(lines.toArray(new String[0]));
+        for (FilterRule rule : rules) {
+            rule.enabled = isNavigationRuleEnabled(rule);
+        }
+        return rules;
+    }
+
+    public boolean isNavigationRuleEnabled(FilterRule rule) {
+        // Opt-in, like blocking rules: nothing starts moving the user around unasked.
+        return prefs.getBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), false);
+    }
+
+    public void setNavigationRuleEnabled(FilterRule rule, boolean enabled) {
+        prefs.edit()
+                .putBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), enabled)
+                .apply();
     }
 
     public int getFrictionWordCount() {

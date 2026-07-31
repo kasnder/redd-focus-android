@@ -50,6 +50,17 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     // scrolling in and out of the viewport do not thrash setServiceInfo(),
     // which makes the system recompute event routing for every installed app.
     private static final long SENTINEL_RELEASE_DELAY_MS = 2000;
+    // Gap between attempts to reach a navigation rule's target screen. An app that has just
+    // been launched needs several frames before its tab bar exists, and events during startup
+    // are bursty, so retries are driven on a timer rather than left to whatever arrives.
+    private static final long NAVIGATION_RETRY_INTERVAL_MS = 250;
+    // How far up from a matched element to look for something that actually handles a click.
+    // Apps label the icon but attach the listener to a wrapper a level or two above; beyond
+    // that the enclosing container is no longer the thing the user would have tapped.
+    private static final int MAX_CLICK_ANCESTRY = 4;
+    // The system UI owns the notification shade and the recents switcher. Both appear over an
+    // app without ending the visit to it, so they never count as a foreground change.
+    private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
     // The event types the service needs while it has something to block. When
     // there is nothing to block the mask is set to zero instead, so the system
     // stops dispatching to this process altogether.
@@ -64,7 +75,9 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private final OverlayManager overlayManager = new OverlayManager();
     private final Map<String, BlockedElement> blockedElements = new HashMap<>();
     private final Set<String> activeRuleKeys = new HashSet<>();
+    private final AutoNavigator autoNavigator = new AutoNavigator();
     private final Runnable pendingClear = this::clearOverlaysIfActiveWindowIsNonTarget;
+    private final Runnable navigationAttempt = this::attemptNavigation;
 
     private WindowManager windowManager;
     private boolean isDarkMode;
@@ -142,6 +155,17 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     protected abstract List<FilterRule> loadRules();
 
+    /**
+     * Rules describing a screen to open as soon as an app is entered, matched exactly like a
+     * blocking rule but clicked rather than covered. Optional: an app that only hides content
+     * can leave this at the default.
+     *
+     * @see AutoNavigator
+     */
+    protected List<FilterRule> loadNavigationRules() {
+        return new ArrayList<>();
+    }
+
     protected abstract boolean shouldProcessRules();
 
     protected abstract void onServiceReady();
@@ -180,11 +204,13 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     protected final void reloadRulesFromSource() {
         cancelProcessEvent();
         ui.removeCallbacks(pendingClear);
+        ui.removeCallbacks(navigationAttempt);
         rules.clear();
         List<FilterRule> loadedRules = loadRules();
         if (loadedRules != null) {
             rules.addAll(loadedRules);
         }
+        autoNavigator.setRules(loadNavigationRules());
         clearAllOverlays();
         updatePauseNotificationForCurrentPackage();
         configureAccessibilityService(false);
@@ -227,6 +253,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             registerScreenReceiver();
             onServiceReady();
             reloadRulesFromSource();
+            adoptCurrentForegroundPackage();
         } catch (Exception e) {
             Log.e(getLogTag(), "Error initializing service", e);
         }
@@ -247,6 +274,11 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     Log.d(getLogTag(), "Screen off - pausing accessibility processing");
                     cancelProcessEvent();
                     ui.removeCallbacks(pendingClear);
+                    ui.removeCallbacks(navigationAttempt);
+                    // The visit ends with the screen. Unlocking back into the same app is a
+                    // new visit and should navigate again, so the tracked package is dropped
+                    // rather than merely disarmed.
+                    autoNavigator.reset();
                     cancelPauseNotification();
                     forceClearAllOverlays();
                     // Stop delivery at the source rather than receiving events
@@ -292,6 +324,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
         String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
 
+        // Tracked before the non-target check below, because the packages that end a visit --
+        // the launcher, another app -- are exactly the ones that check discards.
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            onForegroundPackageChanged(packageName);
+        }
+
         boolean isNonTarget = packageName.equals(getPackageName())
                 || packageName.equals("com.android.systemui")
                 || isLauncherPackage(packageName)
@@ -326,6 +364,192 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
         showPauseNotification(packageName);
         scheduleProcessEvent();
+    }
+
+    /**
+     * Treats whatever is already on screen as a visit in progress, so a reconnection does not
+     * read as the user opening that app. Best effort: the active window is often not available
+     * this early, and the cost of missing it is one unwanted navigation rather than a fault.
+     */
+    private void adoptCurrentForegroundPackage() {
+        AccessibilityNodeInfo root = null;
+        try {
+            root = getRootInActiveWindow();
+            if (root != null && root.getPackageName() != null) {
+                autoNavigator.adoptForegroundPackage(root.getPackageName().toString());
+            }
+        } catch (Exception e) {
+            Log.e(getLogTag(), "Error reading the foreground app at startup", e);
+        } finally {
+            if (root != null) {
+                root.recycle();
+            }
+        }
+    }
+
+    /**
+     * Notes the app now in front and starts trying to reach its target screen if it has a
+     * navigation rule. Our own overlay windows and the system UI are ignored: neither ends the
+     * user's visit to the app underneath, and treating them as if they did would re-navigate
+     * every time a notification arrived.
+     */
+    private void onForegroundPackageChanged(String packageName) {
+        if (packageName.isEmpty()
+                || packageName.equals(getPackageName())
+                || packageName.equals(SYSTEM_UI_PACKAGE)) {
+            return;
+        }
+        boolean armed = autoNavigator.onForegroundPackage(packageName, SystemClock.uptimeMillis());
+        Log.d(getLogTag(), "Foreground package: " + packageName + (armed ? " (armed)" : ""));
+        if (armed) {
+            ui.removeCallbacks(navigationAttempt);
+            ui.post(navigationAttempt);
+        }
+    }
+
+    /**
+     * Tries once to reach the armed rule's target screen, re-posting itself until it succeeds
+     * or the attempt window closes. The target usually does not exist on the first pass --
+     * the app is still laying out -- so failure here is expected rather than exceptional.
+     */
+    private void attemptNavigation() {
+        if (!screenOn || !autoNavigator.isArmed(SystemClock.uptimeMillis())) {
+            return;
+        }
+        // Blocking is suspended while the element picker is up, and a jump to another screen
+        // mid-pick would be just as unwelcome as an overlay.
+        if (shouldProcessRules() && performArmedNavigation()) {
+            autoNavigator.disarm();
+            return;
+        }
+        ui.postDelayed(navigationAttempt, NAVIGATION_RETRY_INTERVAL_MS);
+    }
+
+    /**
+     * Resolves the armed rule against the active window and clicks its target.
+     *
+     * @return true once the click has been delivered, so no further attempt is needed
+     */
+    private boolean performArmedNavigation() {
+        AccessibilityNodeInfo root = null;
+        try {
+            root = getRootInActiveWindow();
+            if (root == null) {
+                return false;
+            }
+            FilterRule rule = autoNavigator.armedRuleFor(
+                    root.getPackageName(), SystemClock.uptimeMillis());
+            if (rule == null) {
+                return false;
+            }
+            AccessibilityNodeInfo target = findNavigationTarget(root, rule);
+            if (target == null) {
+                return false;
+            }
+            try {
+                boolean clicked = clickNodeOrAncestor(target);
+                if (clicked) {
+                    Log.i(getLogTag(), "Auto-navigated " + rule.packageName + ": "
+                            + rule.description);
+                }
+                return clicked;
+            } finally {
+                if (target != root) {
+                    target.recycle();
+                }
+            }
+        } catch (Exception e) {
+            Log.e(getLogTag(), "Error auto-navigating", e);
+            return false;
+        } finally {
+            if (root != null) {
+                root.recycle();
+            }
+        }
+    }
+
+    /**
+     * Finds the element a navigation rule points at. View ID first, since it survives
+     * translation and layout changes; a content description is the fallback for elements that
+     * carry no ID, at the cost of being language-specific.
+     *
+     * @return a node the caller owns and must recycle, or null
+     */
+    private AccessibilityNodeInfo findNavigationTarget(AccessibilityNodeInfo root,
+                                                       FilterRule rule) {
+        if (rule.targetViewId != null && !rule.targetViewId.isEmpty()) {
+            List<AccessibilityNodeInfo> matches =
+                    root.findAccessibilityNodeInfosByViewId(rule.targetViewId);
+            if (matches == null) {
+                return null;
+            }
+            AccessibilityNodeInfo found = null;
+            for (AccessibilityNodeInfo match : matches) {
+                if (found == null && match.isVisibleToUser()) {
+                    found = match;
+                } else {
+                    match.recycle();
+                }
+            }
+            return found;
+        }
+        if (rule.contentDescriptions != null && !rule.contentDescriptions.isEmpty()) {
+            return findByContentDescription(root, rule.contentDescriptions);
+        }
+        return null;
+    }
+
+    /** Depth-first search for a visible node carrying one of the given descriptions. */
+    private AccessibilityNodeInfo findByContentDescription(AccessibilityNodeInfo node,
+                                                          Set<String> targets) {
+        CharSequence desc = node.getContentDescription();
+        if (desc != null && node.isVisibleToUser() && targets.contains(desc.toString())) {
+            return node;
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) {
+                continue;
+            }
+            AccessibilityNodeInfo found = findByContentDescription(child, targets);
+            if (found != null) {
+                // The match is on the returned path, so only unrelated children are recycled.
+                if (found != child) {
+                    child.recycle();
+                }
+                return found;
+            }
+            child.recycle();
+        }
+        return null;
+    }
+
+    /**
+     * Clicks the node, or the nearest ancestor that handles clicks. Apps commonly describe the
+     * icon for accessibility but attach the listener to a wrapper above it, so the described
+     * node itself is often not the clickable one.
+     */
+    private boolean clickNodeOrAncestor(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo current = node;
+        boolean ownsCurrent = false;
+        try {
+            for (int depth = 0; current != null && depth < MAX_CLICK_ANCESTRY; depth++) {
+                if (current.isEnabled() && current.isClickable() && current.isVisibleToUser()) {
+                    return current.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                }
+                AccessibilityNodeInfo parent = current.getParent();
+                if (ownsCurrent) {
+                    current.recycle();
+                }
+                current = parent;
+                ownsCurrent = true;
+            }
+            return false;
+        } finally {
+            if (ownsCurrent && current != null) {
+                current.recycle();
+            }
+        }
     }
 
     private void scheduleProcessEvent() {
@@ -454,6 +678,21 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                 if (rule.enabled) {
                     packages.add(rule.packageName);
                     needsAllViews |= rule.minThumbnailWidthDp > 0;
+                }
+            }
+
+            // A navigation rule fires on entering its app, so the service has to hear about
+            // that app even when nothing in it is being blocked. The launcher joins the list
+            // too: leaving an app is what ends a visit, and going home is the usual way out,
+            // so without it a second visit would look like a continuation of the first and
+            // would not navigate.
+            if (autoNavigator.hasRules()) {
+                for (FilterRule rule : autoNavigator.getRules()) {
+                    packages.add(rule.packageName);
+                }
+                String launcher = getLauncherPackage();
+                if (launcher != null) {
+                    packages.add(launcher);
                 }
             }
 
@@ -1049,6 +1288,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         try {
             cancelProcessEvent();
             ui.removeCallbacks(pendingClear);
+            ui.removeCallbacks(navigationAttempt);
             cancelPauseNotification();
             onServiceTeardown();
             if (screenReceiver != null) {

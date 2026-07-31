@@ -89,9 +89,20 @@ This is the fiddly part of the codebase; the recent commit history is largely ov
 - **Element picker** (`ElementPickerOverlay` + `ElementPickerRuleGenerator`) — user taps a UI element in another app and gets a generated rule; generation priority is `viewId` > `path` > `text` > `className`. While the picker is active, `shouldProcessRules()` returns false so no blocking overlays interfere.
 - **`LayoutDumper`** — debug-only hierarchy dumper, hard-disabled via `ENABLED = false`.
 
+## Navigation rules ("Open on launch")
+
+A second, much smaller pipeline for the case where the distraction *is* the landing screen, so there is nothing to cover: entering the app clicks an element instead. Instagram opens on its inbox rather than the feed; WhatsApp opens on a chat-list filter.
+
+- Bundled in `app/src/main/assets/navigation_rules.txt`, same `##` syntax, parsed by the same `FilterRuleParser`. Only `viewId` and `desc` are used to locate the target — prefer `viewId`, since these targets are tab bars and filter chips whose labels are localised.
+- Loaded by `ServiceConfig.getNavigationRules()`, **never** by `getRules()`: a navigation rule in the overlay pipeline would paint a box over the control it needs to click. Keyed on `nav_rule_enabled_` + the same `ruleKeySuffix`, so navigation and blocking state for the same element stay independent. Opt-in, and deliberately not gated on `isPackageDisabled`.
+- `AutoNavigator` (pure Java, unit-tested) decides *when*: entering an app arms it, and it disarms on the first successful click or after `ATTEMPT_WINDOW_MS`. **Firing once per visit is the whole point** — navigating on every pass would throw the user out of the feed every time they deliberately went back to it. Our own package and `com.android.systemui` are excluded from foreground tracking, so the notification shade does not end a visit.
+- `onServiceConnected` calls `adoptCurrentForegroundPackage()`, which seeds the tracked package *without* arming. The service is reconnected whenever it is re-enabled, updated, or displaced by another accessibility client — notably `uiautomator dump`, which takes over accessibility and restarts every other service. Without adoption each reconnection starts blank and the next event reads as the user opening the app, jumping them to the target screen mid-session. Beware when testing on-device: dumping the hierarchy in a loop causes exactly the bounce you are trying to observe, so prefer `screencap` for anything that spans a visit.
+- `BaseDistractionControlService.attemptNavigation()` retries on a timer, because the tab bar does not exist for the first few frames after launch. `clickNodeOrAncestor` walks up to `MAX_CLICK_ANCESTRY` levels, since apps label the icon but attach the listener to a wrapper above it.
+- Enabled navigation packages, plus the launcher, are added to the event filter in `configureAccessibilityService`. The launcher is what makes leaving an app observable; without it a second visit looks like a continuation of the first.
+
 ## Conventions
 
-- Built-in rules go in `app/src/main/assets/distraction_rules.txt`, one per line, always with a `category` and a `comment` — both are shown in the UI (`RulesAdapter` groups by package, then category).
+- Built-in rules go in `app/src/main/assets/distraction_rules.txt`, one per line, always with a `category` and a `comment` — both are shown in the UI (`RulesAdapter` groups by package, then category). Rules that *open* a screen rather than hide one go in `navigation_rules.txt` instead.
 - New rule target packages must be added to `<queries>` in `AndroidManifest.xml`, otherwise package label lookup fails on API 30+.
 - User-visible strings belong in `res/values/strings.xml`; if a string names the app, the `gmwaylite` flavour needs an override too.
 - Version bumps live in `app/build.gradle` (`versionCode`/`versionName`); store metadata is in `fastlane/metadata/android/`.
