@@ -115,6 +115,51 @@ public class ElementPickerRuleGeneratorTest {
     }
 
     @Test
+    public void plainLanguageDescriptionUsesLabelBeforeRole() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getContentDescription()).thenReturn("Search");
+        when(node.getText()).thenReturn("Ignored");
+        when(node.getClassName()).thenReturn("android.widget.Button");
+
+        assertEquals("Search", ElementPickerRuleGenerator.plainLanguageDescription(node));
+    }
+
+    @Test
+    public void plainLanguageDescriptionMapsCommonRoles() {
+        AccessibilityNodeInfo image = mock(AccessibilityNodeInfo.class);
+        when(image.getClassName()).thenReturn("android.widget.ImageView");
+        AccessibilityNodeInfo list = mock(AccessibilityNodeInfo.class);
+        when(list.getClassName()).thenReturn("androidx.recyclerview.widget.RecyclerView");
+
+        assertEquals("picture", ElementPickerRuleGenerator.plainLanguageDescription(image));
+        assertEquals("list", ElementPickerRuleGenerator.plainLanguageDescription(list));
+    }
+
+    @Test
+    public void broadMatchRefusalOnlyRejectsEveryVisibleNode() {
+        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(4, 4));
+        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(5, 4));
+        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(3, 4));
+        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(0, 0));
+    }
+
+    @Test
+    public void generalizedMatchSafetyUsesTheWildcardSiblingScope() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo first = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo second = mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);
+        when(parent.getChildCount()).thenReturn(2);
+        when(parent.getChild(0)).thenReturn(first);
+        when(parent.getChild(1)).thenReturn(second);
+        when(first.isVisibleToUser()).thenReturn(true);
+        when(second.isVisibleToUser()).thenReturn(true);
+
+        assertEquals(2, ElementPickerRuleGenerator.countVisibleSiblings(node));
+    }
+
+    @Test
     public void describeNodeWithViewId() {
         AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
         when(node.getClassName()).thenReturn("android.widget.Button");

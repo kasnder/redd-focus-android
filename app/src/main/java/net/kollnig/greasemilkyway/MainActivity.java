@@ -6,7 +6,6 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -29,14 +28,15 @@ import net.kollnig.distractionlib.FrictionGateActivity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements FrictionGateHost {
     public static final String ACTION_PAUSE_PACKAGE = "net.kollnig.greasemilkyway.ACTION_PAUSE_PACKAGE";
     public static final String EXTRA_PACKAGE_NAME = "net.kollnig.greasemilkyway.EXTRA_PACKAGE_NAME";
     public static final String EXTRA_RETURN_TO_PACKAGE = "net.kollnig.greasemilkyway.EXTRA_RETURN_TO_PACKAGE";
 
     private ServiceConfig config;
-    private RulesAdapter adapter;
+    private OverviewAdapter adapter;
 
     private AlertDialog accessibilityPromptDialog;
 
@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup RecyclerView
         rulesList.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new RulesAdapter(this, config);
+        adapter = new OverviewAdapter(this, config, this::showAccessibilityPrompt);
         rulesList.setAdapter(adapter);
 
         // Load current settings
@@ -183,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private static boolean detectTwoStepFlow() {
-        String manufacturer = Build.MANUFACTURER.toLowerCase();
+        String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
         return manufacturer.contains("samsung") ||
                 manufacturer.contains("xiaomi") ||
                 manufacturer.contains("oppo") ||
@@ -221,8 +221,8 @@ public class MainActivity extends AppCompatActivity {
         this.onFrictionGatePassed = action;
         this.onFrictionGateCancelled = onCancel;
         Intent intent = new Intent(this, FrictionGateActivity.class);
-        intent.putExtra("WORD_COUNT", wordCount);
-        intent.putExtra("CONTEXT_TITLE", contextTitle);
+        intent.putExtra(FrictionGateActivity.EXTRA_WORD_COUNT, wordCount);
+        intent.putExtra(FrictionGateActivity.EXTRA_CONTEXT_TITLE, contextTitle);
         frictionGateLauncher.launch(intent);
     }
 
@@ -270,13 +270,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        // Gate: if accessibility service is not enabled, prompt and block
-        if (!isAccessibilityServiceEnabled()) {
-            showAccessibilityPrompt();
-            return;
-        }
-
-        // Reload settings to pick up any new custom rules
+        // The overview keeps the service-off state actionable in its status card. A modal here
+        // made that state unreachable and prevented people from inspecting their saved rules.
         loadSettings();
     }
 
@@ -287,11 +282,7 @@ public class MainActivity extends AppCompatActivity {
         // for display only. The adapter dispatches each row back to the store it came from.
         List<FilterRule> rules = new ArrayList<>(config.getRules());
         rules.addAll(config.getNavigationRules());
-        Log.d("SettingsActivity", "Loading " + rules.size() + " rules");
-        for (FilterRule rule : rules) {
-            Log.d("SettingsActivity", "Rule for " + rule.packageName + " with description: " + rule.description);
-        }
-        adapter.setRules(rules);
+        adapter.setRules(rules, isAccessibilityServiceEnabled());
     }
 
     private void setupNavigationBarPadding() {

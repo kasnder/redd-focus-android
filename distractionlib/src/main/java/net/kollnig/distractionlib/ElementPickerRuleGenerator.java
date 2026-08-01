@@ -310,6 +310,73 @@ public class ElementPickerRuleGenerator {
         return sb.toString().trim();
     }
 
+    /** A short label that explains the selected thing without requiring Android vocabulary. */
+    public static String plainLanguageDescription(AccessibilityNodeInfo node) {
+        if (node == null) return "element";
+        CharSequence label = node.getContentDescription();
+        if (label == null || label.length() == 0) label = node.getText();
+        if (label != null && label.length() > 0) return label.toString();
+        CharSequence className = node.getClassName();
+        String name = className == null ? "" : className.toString();
+        if (name.endsWith("ImageView")) return "picture";
+        if (name.endsWith("Button")) return "button";
+        if (name.endsWith("RecyclerView") || name.endsWith("ListView")) return "list";
+        return "element";
+    }
+
+    /** Counts visible siblings selected by the wildcard leaf used by generateRuleForAll. */
+    public static int countGeneralizedSiblingMatches(AccessibilityNodeInfo node) {
+        if (node == null) return 0;
+        AccessibilityNodeInfo parent = node.getParent();
+        if (parent == null) return node.isVisibleToUser() ? 1 : 0;
+        try {
+            CharSequence selectedClass = node.getClassName();
+            int count = 0;
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                AccessibilityNodeInfo sibling = parent.getChild(i);
+                if (sibling == null) continue;
+                try {
+                    CharSequence siblingClass = sibling.getClassName();
+                    if (sibling.isVisibleToUser() && selectedClass != null
+                            && siblingClass != null
+                            && selectedClass.toString().contentEquals(siblingClass)) count++;
+                } finally {
+                    sibling.recycle();
+                }
+            }
+            return count;
+        } finally {
+            parent.recycle();
+        }
+    }
+
+    /** Counts the visible siblings against which the wildcard leaf is evaluated. */
+    public static int countVisibleSiblings(AccessibilityNodeInfo node) {
+        if (node == null) return 0;
+        AccessibilityNodeInfo parent = node.getParent();
+        if (parent == null) return node.isVisibleToUser() ? 1 : 0;
+        try {
+            int count = 0;
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                AccessibilityNodeInfo sibling = parent.getChild(i);
+                if (sibling == null) continue;
+                try {
+                    if (sibling.isVisibleToUser()) count++;
+                } finally {
+                    sibling.recycle();
+                }
+            }
+            return count;
+        } finally {
+            parent.recycle();
+        }
+    }
+
+    /** Refuses a wildcard that would select every visible candidate in its sibling scope. */
+    public static boolean refusesBroadMatch(int matchCount, int visibleNodeCount) {
+        return visibleNodeCount > 0 && matchCount >= visibleNodeCount;
+    }
+
     public static String getSelectorDescription(AccessibilityNodeInfo node,
                                                 AccessibilityNodeInfo rootNode) {
         String viewId = node.getViewIdResourceName();

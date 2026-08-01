@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat;
 public class ElementPickerNotification {
     private static final String TAG = "ElementPickerNotification";
     public static final String CHANNEL_ID = "element_picker_channel";
+    public static final String ACTIVE_CHANNEL_ID = "element_picker_active_channel";
     private static final int NOTIFICATION_ID = 1001;
 
     public static final String ACTION_START_PICKER = "net.kollnig.greasemilkyway.ACTION_START_PICKER";
@@ -41,6 +42,14 @@ public class ElementPickerNotification {
             channel.setDescription(context.getString(R.string.picker_channel_description));
             channel.setShowBadge(false);
             notificationManager.createNotificationChannel(channel);
+            NotificationChannel activeChannel = new NotificationChannel(
+                    ACTIVE_CHANNEL_ID,
+                    context.getString(R.string.picker_active_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            activeChannel.setDescription(context.getString(R.string.picker_active_channel_description));
+            activeChannel.setShowBadge(false);
+            notificationManager.createNotificationChannel(activeChannel);
         }
     }
 
@@ -76,7 +85,7 @@ public class ElementPickerNotification {
                 context, 1, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+        Notification notification = new NotificationCompat.Builder(context, ACTIVE_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(context.getString(R.string.picker_active_title))
                 .setContentText(context.getString(R.string.picker_active_text))

@@ -14,7 +14,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Manages configuration for the LayoutDumpAccessibilityService.
@@ -380,6 +383,39 @@ public class ServiceConfig {
         }
     }
 
+    /** Renames all blocking-rule parts behind one merged custom row atomically. */
+    public void renameCustomRules(String[] ruleStrings, String newComment) {
+        renameCustomRules(KEY_CUSTOM_RULES, ruleStrings, newComment);
+    }
+
+    /** Renames all navigation-rule parts behind one merged custom row atomically. */
+    public void renameCustomNavigationRules(String[] ruleStrings, String newComment) {
+        renameCustomRules(KEY_CUSTOM_NAVIGATION_RULES, ruleStrings, newComment);
+    }
+
+    private void renameCustomRules(String preferenceKey, String[] ruleStrings, String newComment) {
+        if (ruleStrings == null || ruleStrings.length == 0 || newComment == null) {
+            throw new IllegalArgumentException("Rules and comment are required");
+        }
+        Set<String> oldRules = new HashSet<>(Arrays.asList(ruleStrings));
+        String stored = prefs.getString(preferenceKey, "");
+        if (stored.isEmpty()) {
+            return;
+        }
+
+        String[] lines = stored.split("\\n");
+        boolean changed = false;
+        for (int i = 0; i < lines.length; i++) {
+            if (oldRules.contains(lines[i])) {
+                lines[i] = RuleText.withComment(lines[i], newComment);
+                changed = true;
+            }
+        }
+        if (changed) {
+            prefs.edit().putString(preferenceKey, String.join("\n", lines)).apply();
+        }
+    }
+
     public boolean isNavigationRuleEnabled(FilterRule rule) {
         // Opt-in, like blocking rules: nothing starts moving the user around unasked.
         return prefs.getBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), false);
@@ -423,6 +459,41 @@ public class ServiceConfig {
 
         editor.apply();
         return displaced;
+    }
+
+    /** Clears every saved navigation selection for one app in a single preference update. */
+    public void disableAllNavigationRules(String packageName) {
+        if (packageName == null) {
+            throw new IllegalArgumentException("Package name is required");
+        }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        for (FilterRule rule : getNavigationRules()) {
+            if (packageName.equals(rule.packageName)) {
+                editor.putBoolean(KEY_NAVIGATION_RULE_ENABLED + ruleKeySuffix(rule), false);
+            }
+        }
+        editor.apply();
+    }
+
+    /**
+     * Pauses the supplied packages as one preference update. A package pause is represented by
+     * both its disabled master switch and its expiry timestamp, so neither can be written alone.
+     */
+    public void pausePackagesUntil(Iterable<String> packageNames, long untilMillis) {
+        if (untilMillis <= System.currentTimeMillis()) {
+            throw new IllegalArgumentException("Pause expiry must be in the future");
+        }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        for (String packageName : packageNames) {
+            if (packageName == null || packageName.isEmpty()) {
+                throw new IllegalArgumentException("Package name is required");
+            }
+            editor.putBoolean(KEY_PACKAGE_DISABLED + packageName, true);
+            editor.putLong(KEY_PAUSE_UNTIL_PACKAGE_ + packageName, untilMillis);
+        }
+        editor.apply();
     }
 
     /**

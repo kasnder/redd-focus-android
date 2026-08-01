@@ -22,6 +22,7 @@
     
     <!-- Accent Colors - Slightly brighter in dark mode -->
     <color name="accent_green">#34D399</color>
+    <color name="state_paused">#FBBF24</color>
     
     <!-- Callout/Alert Colors (for warnings, errors) - Muted for dark mode -->
     <color name="callout_bg">#7F1D1D</color>
@@ -31,4 +32,3 @@
     <color name="black">#FF000000</color>
     
 </resources>
-

@@ -24,7 +24,7 @@ public class RulesAdapterTest {
 
     @Test
     public void rulesSharingACommentBecomeOneRow() {
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(parse(
+        List<List<FilterRule>> rows = RuleRows.mergeRules(parse(
                 "com.example.app##path=A[*]##comment=Hide feed",
                 "com.example.app##path=B[*]##comment=Hide feed"));
 
@@ -34,7 +34,7 @@ public class RulesAdapterTest {
 
     @Test
     public void rulesWithDifferentCommentsStaySeparate() {
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(parse(
+        List<List<FilterRule>> rows = RuleRows.mergeRules(parse(
                 "com.example.app##path=A[*]##comment=Hide feed",
                 "com.example.app##path=B[*]##comment=Hide stories"));
 
@@ -48,7 +48,7 @@ public class RulesAdapterTest {
      */
     @Test
     public void differingCategoriesDoNotPreventMerging() {
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(parse(
+        List<List<FilterRule>> rows = RuleRows.mergeRules(parse(
                 "com.example.app##category=Feed##path=A[*]##comment=Hide feed",
                 "com.example.app##category=Main screen##path=B[*]##comment=Hide feed"));
 
@@ -61,7 +61,7 @@ public class RulesAdapterTest {
      */
     @Test
     public void rulesWithoutCommentsNeverMerge() {
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(parse(
+        List<List<FilterRule>> rows = RuleRows.mergeRules(parse(
                 "com.example.app##path=A[*]",
                 "com.example.app##path=B[*]"));
 
@@ -70,7 +70,7 @@ public class RulesAdapterTest {
 
     @Test
     public void mergedRowKeepsThePositionOfItsFirstPart() {
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(parse(
+        List<List<FilterRule>> rows = RuleRows.mergeRules(parse(
                 "com.example.app##path=A[*]##comment=Hide ads",
                 "com.example.app##path=B[*]##comment=Hide feed",
                 "com.example.app##path=C[*]##comment=Hide ads"));
@@ -89,10 +89,10 @@ public class RulesAdapterTest {
 
         row.get(0).enabled = true;
         row.get(1).enabled = false;
-        assertFalse(RulesAdapter.isRowEnabled(row));
+        assertFalse(RuleRows.isRowEnabled(row));
 
         row.get(1).enabled = true;
-        assertTrue(RulesAdapter.isRowEnabled(row));
+        assertTrue(RuleRows.isRowEnabled(row));
     }
 
     /**
@@ -105,7 +105,7 @@ public class RulesAdapterTest {
                 "com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.view.ViewGroup[*]##comment=Hide feed",
                 "com.instagram.android##category=Feed##path=androidx.viewpager.widget.ViewPager[0]>android.widget.FrameLayout[0]>androidx.recyclerview.widget.RecyclerView[0]>android.widget.FrameLayout[*]##comment=Hide feed");
 
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(feedRules);
+        List<List<FilterRule>> rows = RuleRows.mergeRules(feedRules);
 
         assertEquals(1, rows.size());
         assertEquals(2, rows.get(0).size());
@@ -124,7 +124,7 @@ public class RulesAdapterTest {
                 "com.example.app##path=B[*]##comment=Hide feed");
         rules.get(1).isCustom = true;
 
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(rules);
+        List<List<FilterRule>> rows = RuleRows.mergeRules(rules);
 
         assertEquals(2, rows.size());
     }
@@ -142,11 +142,11 @@ public class RulesAdapterTest {
                 "com.example.app##viewId=com.example.app:id/inbox##comment=Inbox");
         rules.get(1).isNavigation = true;
 
-        List<List<FilterRule>> rows = RulesAdapter.mergeRules(rules);
+        List<List<FilterRule>> rows = RuleRows.mergeRules(rules);
 
         assertEquals(2, rows.size());
-        assertFalse(RulesAdapter.isNavigationRow(rows.get(0)));
-        assertTrue(RulesAdapter.isNavigationRow(rows.get(1)));
+        assertFalse(RuleRows.isNavigationRow(rows.get(0)));
+        assertTrue(RuleRows.isNavigationRow(rows.get(1)));
     }
 
     /**
@@ -164,7 +164,7 @@ public class RulesAdapterTest {
             rule.isNavigation = true;
         }
 
-        assertEquals(2, RulesAdapter.mergeRules(rules).size());
+        assertEquals(2, RuleRows.mergeRules(rules).size());
     }
 
     /**
@@ -183,7 +183,7 @@ public class RulesAdapterTest {
             rule.enabled = true;
         }
 
-        RulesAdapter.markOtherNavigationRulesDisabled(
+        RuleRows.markOtherNavigationRulesDisabled(
                 rules, Collections.singletonList(rules.get(1)));
 
         assertFalse(rules.get(0).enabled);
@@ -202,7 +202,7 @@ public class RulesAdapterTest {
             rule.enabled = true;
         }
 
-        RulesAdapter.markOtherNavigationRulesDisabled(
+        RuleRows.markOtherNavigationRulesDisabled(
                 rules, Collections.singletonList(rules.get(2)));
 
         assertTrue("a different app keeps its navigation rule", rules.get(0).enabled);
