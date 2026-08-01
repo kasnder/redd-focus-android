@@ -84,7 +84,8 @@ public class AppDetailActivity extends AppCompatActivity implements FrictionGate
         adapter = new AppDetailAdapter(this, config, packageName);
         list.setAdapter(adapter);
 
-        findViewById(R.id.pause_15).setOnClickListener(view -> pauseFor(15));
+        findViewById(R.id.pause_default).setOnClickListener(
+                view -> pauseFor(config.getPauseDurationMins()));
         findViewById(R.id.pause_hour).setOnClickListener(view -> pauseFor(60));
         findViewById(R.id.pause_today).setOnClickListener(view -> runWithFrictionGate(
                 getString(R.string.pause_app_title), () -> {
@@ -149,25 +150,24 @@ public class AppDetailActivity extends AppCompatActivity implements FrictionGate
         } else {
             state.setText(R.string.app_detail_state);
         }
+        int defaultMinutes = config.getPauseDurationMins();
+        ((MaterialButton) findViewById(R.id.pause_default)).setText(
+                getResources().getQuantityString(
+                        R.plurals.pause_chip_minutes, defaultMinutes, defaultMinutes));
         adapter.setRules(appRules);
     }
 
     private void showPauseOrDisableDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.pause_or_disable_title)
-                .setMessage(R.string.pause_or_disable_message)
-                .setPositiveButton(R.string.pause_default_action, (dialog, which) -> {
+        PauseOrDisableDialog.show(this, config,
+                () -> {
                     PauseManager.applyPackagePause(this, packageName);
                     load();
-                })
-                .setNegativeButton(R.string.disable_permanently_action, (dialog, which) -> {
+                }, () -> {
                     config.setPackageDisabled(packageName, true);
                     config.setPackagePausedUntil(packageName, 0);
                     notifyService();
                     load();
-                })
-                .setOnCancelListener(dialog -> load())
-                .show();
+                }, this::load);
     }
 
     private void showPickerChoice() {

@@ -13,7 +13,9 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 
 import net.kollnig.distractionlib.FilterRule;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -80,10 +82,19 @@ final class CustomRulesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 ? context.getString(R.string.rule_custom_fallback)
                 : primary.description.trim();
         boolean appOff = config.isPackageDisabled(primary.packageName);
+        long pausedUntil = 0;
+        for (FilterRule rule : row) {
+            if (rule.isPaused) pausedUntil = Math.max(pausedUntil, rule.pausedUntil);
+        }
 
         ruleHolder.name.setText(name);
         if (appOff) {
             ruleHolder.subtitle.setText(R.string.custom_rule_app_off);
+            ruleHolder.subtitle.setVisibility(View.VISIBLE);
+        } else if (pausedUntil > System.currentTimeMillis()) {
+            ruleHolder.subtitle.setText(context.getString(R.string.app_paused_resumes,
+                    DateFormat.getTimeInstance(DateFormat.SHORT)
+                            .format(new Date(pausedUntil))));
             ruleHolder.subtitle.setVisibility(View.VISIBLE);
         } else if (row.size() > 1) {
             ruleHolder.subtitle.setText(context.getResources().getQuantityString(

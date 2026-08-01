@@ -52,6 +52,7 @@
             android:id="@+id/app_detail_switch"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
+            android:minWidth="64dp"
             android:contentDescription="@string/disable_all_rules_for_app" />
     </LinearLayout>
 
@@ -67,11 +68,11 @@
             android:paddingEnd="16dp">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/pause_15"
+                android:id="@+id/pause_default"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:text="@string/pause_15_minutes" />
+                android:text="@string/pause_default_placeholder" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pause_hour"
@@ -97,7 +98,10 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:padding="16dp" />
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="16dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/guided_picker"

@@ -159,7 +159,7 @@ final class AppDetailAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 holder.switchView.setChecked(true);
                 ((FrictionGateHost) context).runWithFrictionGate(
                         context.getString(R.string.disable_group_title, group.title),
-                        () -> setRowsEnabled(group.rows, false));
+                        () -> showPauseOrDisable(group.rows));
             } else if (enabled) {
                 setRowsEnabled(group.rows, true);
             }
@@ -197,7 +197,8 @@ final class AppDetailAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 holder.switchView.setChecked(true);
                 ((FrictionGateHost) context).runWithFrictionGate(
                         context.getString(R.string.disable_rule_title),
-                        () -> setRowsEnabled(java.util.Collections.singletonList(item.parts), false));
+                        () -> showPauseOrDisable(
+                                java.util.Collections.singletonList(item.parts)));
             } else if (enabled) {
                 setRowsEnabled(java.util.Collections.singletonList(item.parts), true);
             }
@@ -215,6 +216,20 @@ final class AppDetailAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             }
         }
         notifyService();
+        rebuildItems();
+    }
+
+    private void showPauseOrDisable(List<List<FilterRule>> rows) {
+        PauseOrDisableDialog.show(context, config,
+                () -> pauseRows(rows),
+                () -> setRowsEnabled(rows, false),
+                this::rebuildItems);
+    }
+
+    private void pauseRows(List<List<FilterRule>> rows) {
+        List<FilterRule> rules = new ArrayList<>();
+        for (List<FilterRule> row : rows) rules.addAll(row);
+        PauseManager.applyRulePauses(context, rules);
         rebuildItems();
     }
 

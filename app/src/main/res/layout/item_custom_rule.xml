@@ -9,7 +9,7 @@
     android:focusable="true"
     android:paddingStart="20dp"
     android:paddingTop="8dp"
-    android:paddingEnd="12dp"
+    android:paddingEnd="8dp"
     android:paddingBottom="8dp">
 
     <TextView
@@ -38,7 +38,7 @@
         android:id="@+id/custom_rule_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="48dp"
+        android:minWidth="64dp"
         android:minHeight="48dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/custom_rule_chevron"
@@ -47,7 +47,7 @@
 
     <TextView
         android:id="@+id/custom_rule_chevron"
-        android:layout_width="32dp"
+        android:layout_width="24dp"
         android:layout_height="48dp"
         android:gravity="center"
         android:importantForAccessibility="no"

@@ -176,24 +176,34 @@ public class CustomRulesActivity extends AppCompatActivity implements FrictionGa
 
     private void setRowEnabled(List<FilterRule> row, boolean enabled) {
         if (row.isEmpty()) return;
-        Runnable change = () -> {
-            for (FilterRule rule : row) {
-                if (rule.isNavigation) {
-                    config.setNavigationRuleEnabled(rule, enabled);
-                } else {
-                    config.setRuleEnabled(rule, enabled);
-                    config.setRulePausedUntil(rule, 0);
-                }
-            }
-            notifyService();
-            reloadRuleList();
-        };
         if (!enabled && !RuleRows.isNavigationRow(row)) {
             String name = displayName(row);
-            runWithFrictionGate(getString(R.string.custom_rule_disable_gate, name), change);
+            runWithFrictionGate(getString(R.string.custom_rule_disable_gate, name),
+                    () -> showPauseOrDisable(row));
         } else {
-            change.run();
+            applyRowEnabled(row, enabled);
         }
+    }
+
+    private void showPauseOrDisable(List<FilterRule> row) {
+        PauseOrDisableDialog.show(this, config,
+                () -> {
+                    PauseManager.applyRulePauses(this, row);
+                    reloadRuleList();
+                }, () -> applyRowEnabled(row, false), this::reloadRuleList);
+    }
+
+    private void applyRowEnabled(List<FilterRule> row, boolean enabled) {
+        for (FilterRule rule : row) {
+            if (rule.isNavigation) {
+                config.setNavigationRuleEnabled(rule, enabled);
+            } else {
+                config.setRuleEnabled(rule, enabled);
+                config.setRulePausedUntil(rule, 0);
+            }
+        }
+        notifyService();
+        reloadRuleList();
     }
 
     private void showEditDialog(List<FilterRule> row) {

@@ -3,7 +3,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp">
+    android:paddingStart="16dp"
+    android:paddingTop="16dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="16dp">
 
     <ImageView
         android:id="@+id/app_icon"
@@ -41,10 +44,8 @@
         android:id="@+id/package_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="48dp"
+        android:minWidth="64dp"
         android:minHeight="48dp"
-        android:scaleX="0.75"
-        android:scaleY="0.75"
         android:contentDescription="@string/disable_all_rules_for_app"
         app:useMaterialThemeColors="true"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -53,7 +54,7 @@
 
     <TextView
         android:id="@+id/app_chevron"
-        android:layout_width="24dp"
+        android:layout_width="20dp"
         android:layout_height="48dp"
         android:gravity="center"
         android:text="@string/chevron_collapsed"

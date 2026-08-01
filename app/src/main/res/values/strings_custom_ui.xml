@@ -48,6 +48,7 @@
     <string name="app_detail_off">Blocking is off</string>
     <string name="app_detail_paused_until">Paused · resumes %1$s</string>
     <string name="hide_something_new">Hide something new</string>
+    <string name="pause_default_placeholder">Pause</string>
     <string name="open_place_on_launch">Open a place on launch instead</string>
     <string name="picker_guided_title">Hide something new</string>
     <string name="picker_guided_message">We’ll open %1$s with the picker on. Tap the thing that distracts you; you can adjust the selection before saving.</string>
@@ -58,9 +59,19 @@
     <string name="pause_all_title">Pause all active apps</string>
     <string name="not_installed_expand">Not installed · tap to show</string>
     <string name="not_installed_collapse">Not installed · tap to hide</string>
-    <string name="pause_or_disable_message">Pause for the default duration, or keep blocking off until you turn it back on.</string>
-    <string name="pause_default_action">Pause</string>
-    <string name="disable_permanently_action">Turn off</string>
+    <plurals name="pause_for_minutes">
+        <item quantity="one">Pause for %d minute</item>
+        <item quantity="other">Pause for %d minutes</item>
+    </plurals>
+    <plurals name="pause_chip_minutes">
+        <item quantity="one">Pause %d min</item>
+        <item quantity="other">Pause %d min</item>
+    </plurals>
+    <plurals name="pause_recommended_message">
+        <item quantity="one">We recommend pausing for %d minute. Blocking will turn back on automatically.</item>
+        <item quantity="other">We recommend pausing for %d minutes. Blocking will turn back on automatically.</item>
+    </plurals>
+    <string name="disable_permanently_action">Turn off permanently</string>
     <string name="chevron_collapsed" translatable="false">›</string>
     <string name="chevron_expanded" translatable="false">⌄</string>
     <string-array name="response_speed_choices">

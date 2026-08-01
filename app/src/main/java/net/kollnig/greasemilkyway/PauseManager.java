@@ -2,6 +2,8 @@ package net.kollnig.greasemilkyway;
 
 import android.content.Context;
 
+import net.kollnig.distractionlib.FilterRule;
+
 import java.util.Calendar;
 import java.util.Collections;
 
@@ -58,6 +60,32 @@ public final class PauseManager {
             throw new IllegalArgumentException("Pause duration must be positive");
         }
         return applyPackagePauses(context, packageNames, durationUntil(minutes));
+    }
+
+    /** Temporarily switches off blocking rules while preserving their automatic return. */
+    public static long applyRulePauses(Context context, Iterable<FilterRule> rules) {
+        ServiceConfig config = new ServiceConfig(context);
+        return applyRulePausesUntil(context, rules,
+                durationUntil(config.getPauseDurationMins()));
+    }
+
+    static long applyRulePausesUntil(Context context, Iterable<FilterRule> rules, long until) {
+        if (until <= System.currentTimeMillis()) {
+            throw new IllegalArgumentException("Pause expiry must be in the future");
+        }
+        ServiceConfig config = new ServiceConfig(context);
+        for (FilterRule rule : rules) {
+            if (rule == null || rule.isNavigation) {
+                throw new IllegalArgumentException("A blocking rule is required");
+            }
+            config.setRuleEnabled(rule, false);
+            config.setRulePausedUntil(rule, until);
+            rule.enabled = false;
+            rule.isPaused = true;
+            rule.pausedUntil = until;
+        }
+        notifyService();
+        return until;
     }
 
     private static long durationUntil(int minutes) {

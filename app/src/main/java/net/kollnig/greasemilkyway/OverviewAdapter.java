@@ -9,7 +9,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -63,7 +62,8 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         List<AppItem> installed = new ArrayList<>();
         List<AppItem> missing = new ArrayList<>();
         for (Map.Entry<String, List<FilterRule>> entry : byPackage.entrySet()) {
-            AppItem item = new AppItem(entry.getKey(), entry.getValue());
+            AppItem item = new AppItem(entry.getKey(), entry.getValue(),
+                    config.getPackagePausedUntil(entry.getKey()));
             boolean isInstalled = AppCatalog.isInstalled(context, item.packageName);
             if (isInstalled && item.pausedUntil > System.currentTimeMillis()) {
                 pausedApps++;
@@ -231,21 +231,16 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void showPauseOrDisable(AppItem item) {
-        new AlertDialog.Builder(context)
-                .setTitle(R.string.pause_or_disable_title)
-                .setMessage(R.string.pause_or_disable_message)
-                .setPositiveButton(R.string.pause_default_action, (dialog, which) -> {
+        PauseOrDisableDialog.show(context, config,
+                () -> {
                     PauseManager.applyPackagePause(context, item.packageName);
                     reload();
-                })
-                .setNegativeButton(R.string.disable_permanently_action, (dialog, which) -> {
+                }, () -> {
                     config.setPackageDisabled(item.packageName, true);
                     config.setPackagePausedUntil(item.packageName, 0);
                     notifyService();
                     reload();
-                })
-                .setOnCancelListener(dialog -> reload())
-                .show();
+                }, this::reload);
     }
 
     private void reload() {
@@ -289,9 +284,10 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         final long pausedUntil;
         final String destination;
 
-        AppItem(String packageName, List<FilterRule> rules) {
+        AppItem(String packageName, List<FilterRule> rules, long pausedUntil) {
             this.packageName = packageName;
             this.rules = rules;
+            this.pausedUntil = pausedUntil;
             int active = 0;
             String navigationDestination = "";
             for (List<FilterRule> row : RuleRows.mergeRules(rules)) {
@@ -305,11 +301,6 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             }
             activeRows = active;
             destination = navigationDestination;
-            long pause = 0;
-            for (FilterRule rule : rules) {
-                pause = Math.max(pause, rule.pausedUntil);
-            }
-            pausedUntil = pause;
         }
     }
 
