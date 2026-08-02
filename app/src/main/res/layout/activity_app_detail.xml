@@ -68,27 +68,27 @@
             android:paddingEnd="16dp">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/pause_default"
+                android:id="@+id/pause_shorter"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="@string/pause_default_placeholder" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/pause_hour"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:id="@+id/pause_default"
+                style="@style/Widget.MaterialComponents.Button"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:text="@string/pause_one_hour" />
+                android:text="@string/pause_default_placeholder" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/pause_today"
+                android:id="@+id/pause_longer"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:text="@string/pause_today" />
+                android:text="@string/pause_default_placeholder" />
         </LinearLayout>
     </HorizontalScrollView>
 

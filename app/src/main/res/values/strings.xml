@@ -73,8 +73,6 @@
     <string name="footer_branding">Made with ❤️ by reddfocus.org</string>
     <string name="app_detail_state">Blocking is active</string>
     <string name="app_detail_paused">Paused</string>
-    <string name="pause_one_hour">1 hour</string>
-    <string name="pause_today">Today</string>
     <string name="pause_app_title">Pause app</string>
     <string name="open_normally">Open normally</string>
     <string name="toggle_category">Turn this category on or off</string>

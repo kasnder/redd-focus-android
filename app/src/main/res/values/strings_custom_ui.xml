@@ -63,10 +63,19 @@
         <item quantity="one">Pause for %d minute</item>
         <item quantity="other">Pause for %d minutes</item>
     </plurals>
-    <plurals name="pause_chip_minutes">
-        <item quantity="one">Pause %d min</item>
-        <item quantity="other">Pause %d min</item>
+    <plurals name="pause_chip_seconds">
+        <item quantity="one">%d sec</item>
+        <item quantity="other">%d sec</item>
     </plurals>
+    <plurals name="pause_chip_minute_value">
+        <item quantity="one">%d min</item>
+        <item quantity="other">%d min</item>
+    </plurals>
+    <plurals name="pause_chip_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <string name="pause_chip_default">%1$s · default</string>
     <plurals name="pause_recommended_message">
         <item quantity="one">We recommend pausing for %d minute. Blocking will turn back on automatically.</item>
         <item quantity="other">We recommend pausing for %d minutes. Blocking will turn back on automatically.</item>

@@ -160,6 +160,63 @@ public class ElementPickerRuleGeneratorTest {
     }
 
     @Test
+    public void generalizedMatchDoesNotRefuseAMixedVisibleSiblingGroup() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo firstMatch = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo secondMatch = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo other = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo invisibleMatch = mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);
+        when(node.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(parent.getChildCount()).thenReturn(4);
+        when(parent.getChild(0)).thenReturn(firstMatch);
+        when(parent.getChild(1)).thenReturn(secondMatch);
+        when(parent.getChild(2)).thenReturn(other);
+        when(parent.getChild(3)).thenReturn(invisibleMatch);
+        when(firstMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(secondMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(other.getClassName()).thenReturn("android.widget.TextView");
+        when(invisibleMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(firstMatch.isVisibleToUser()).thenReturn(true);
+        when(secondMatch.isVisibleToUser()).thenReturn(true);
+        when(other.isVisibleToUser()).thenReturn(true);
+
+        int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
+        int visible = ElementPickerRuleGenerator.countVisibleSiblings(node);
+
+        assertEquals(2, matches);
+        assertEquals(3, visible);
+        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(matches, visible));
+    }
+
+    @Test
+    public void generalizedMatchRefusesEveryVisibleSiblingInItsScope() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo first = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo second = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo third = mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);
+        when(node.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(parent.getChildCount()).thenReturn(3);
+        when(parent.getChild(0)).thenReturn(first);
+        when(parent.getChild(1)).thenReturn(second);
+        when(parent.getChild(2)).thenReturn(third);
+        for (AccessibilityNodeInfo child : new AccessibilityNodeInfo[]{first, second, third}) {
+            when(child.getClassName()).thenReturn("android.widget.FrameLayout");
+            when(child.isVisibleToUser()).thenReturn(true);
+        }
+
+        int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
+        int visible = ElementPickerRuleGenerator.countVisibleSiblings(node);
+
+        assertEquals(3, matches);
+        assertEquals(3, visible);
+        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(matches, visible));
+    }
+
+    @Test
     public void describeNodeWithViewId() {
         AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
         when(node.getClassName()).thenReturn("android.widget.Button");

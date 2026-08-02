@@ -84,14 +84,9 @@ public class AppDetailActivity extends AppCompatActivity implements FrictionGate
         adapter = new AppDetailAdapter(this, config, packageName);
         list.setAdapter(adapter);
 
-        findViewById(R.id.pause_default).setOnClickListener(
-                view -> pauseFor(config.getPauseDurationMins()));
-        findViewById(R.id.pause_hour).setOnClickListener(view -> pauseFor(60));
-        findViewById(R.id.pause_today).setOnClickListener(view -> runWithFrictionGate(
-                getString(R.string.pause_app_title), () -> {
-                    PauseManager.applyPackagePauseUntilLocalMidnight(this, packageName);
-                    load();
-                }));
+        findViewById(R.id.pause_shorter).setOnClickListener(view -> pauseForChip(0));
+        findViewById(R.id.pause_default).setOnClickListener(view -> pauseForChip(1));
+        findViewById(R.id.pause_longer).setOnClickListener(view -> pauseForChip(2));
 
         MaterialButton picker = findViewById(R.id.guided_picker);
         picker.setVisibility(getResources().getBoolean(R.bool.show_custom_rules_fab)
@@ -151,9 +146,14 @@ public class AppDetailActivity extends AppCompatActivity implements FrictionGate
             state.setText(R.string.app_detail_state);
         }
         int defaultMinutes = config.getPauseDurationMins();
+        long[] pauseDurations = PauseChipDurations.aroundDefault(defaultMinutes);
+        ((MaterialButton) findViewById(R.id.pause_shorter))
+                .setText(formatPauseDuration(pauseDurations[0]));
         ((MaterialButton) findViewById(R.id.pause_default)).setText(
-                getResources().getQuantityString(
-                        R.plurals.pause_chip_minutes, defaultMinutes, defaultMinutes));
+                getString(R.string.pause_chip_default,
+                        formatPauseDuration(pauseDurations[1])));
+        ((MaterialButton) findViewById(R.id.pause_longer))
+                .setText(formatPauseDuration(pauseDurations[2]));
         adapter.setRules(appRules);
     }
 
@@ -207,11 +207,30 @@ public class AppDetailActivity extends AppCompatActivity implements FrictionGate
         startActivity(launch);
     }
 
-    private void pauseFor(int minutes) {
+    private void pauseForChip(int index) {
+        long durationMillis = PauseChipDurations.aroundDefault(
+                config.getPauseDurationMins())[index];
         runWithFrictionGate(getString(R.string.pause_app_title), () -> {
-            PauseManager.applyPackagePause(this, packageName, minutes);
+            PauseManager.applyPackagePauseUntil(this, packageName,
+                    Math.addExact(System.currentTimeMillis(), durationMillis));
             load();
         });
+    }
+
+    private String formatPauseDuration(long durationMillis) {
+        if (durationMillis < PauseChipDurations.MINUTE_MILLIS) {
+            int seconds = (int) (durationMillis / PauseChipDurations.SECOND_MILLIS);
+            return getResources().getQuantityString(
+                    R.plurals.pause_chip_seconds, seconds, seconds);
+        }
+        int minutes = (int) (durationMillis / PauseChipDurations.MINUTE_MILLIS);
+        if (minutes % 60 == 0) {
+            int hours = minutes / 60;
+            return getResources().getQuantityString(
+                    R.plurals.pause_chip_hours, hours, hours);
+        }
+        return getResources().getQuantityString(
+                R.plurals.pause_chip_minute_value, minutes, minutes);
     }
 
     @Override

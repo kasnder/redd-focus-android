@@ -85,6 +85,7 @@ public class PauseManagerTest {
 
         assertEquals(until, config.getRulePausedUntil(rule));
         assertFalse(rule.enabled);
+        assertFalse(RuleRows.isRowEnabled(Collections.singletonList(rule)));
         assertTrue(rule.isPaused);
         assertEquals(until, rule.pausedUntil);
     }
