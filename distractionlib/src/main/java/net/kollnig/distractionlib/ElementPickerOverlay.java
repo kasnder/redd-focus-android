@@ -624,8 +624,8 @@ public class ElementPickerOverlay {
     private void updateBlockAllButton(AccessibilityNodeInfo node) {
         if (blockAllButton == null || currentRootNode == null) return;
         int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
-        int visible = ElementPickerRuleGenerator.countVisibleSiblings(node);
-        boolean tooBroad = ElementPickerRuleGenerator.refusesBroadMatch(matches, visible);
+        boolean tooBroad = ElementPickerRuleGenerator.refusesFullScreenSelection(node,
+                currentRootNode);
         blockAllButton.setText(service.getString(R.string.picker_block_all_count, matches));
         blockAllButton.setEnabled(matches > 0 && !tooBroad);
         blockAllButton.setAlpha(matches > 0 && !tooBroad ? 1f : 0.45f);

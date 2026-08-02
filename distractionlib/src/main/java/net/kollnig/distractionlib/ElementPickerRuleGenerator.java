@@ -1,5 +1,6 @@
 package net.kollnig.distractionlib;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.ArrayList;
@@ -350,31 +351,18 @@ public class ElementPickerRuleGenerator {
         }
     }
 
-    /** Counts the visible siblings against which the wildcard leaf is evaluated. */
-    public static int countVisibleSiblings(AccessibilityNodeInfo node) {
-        if (node == null) return 0;
-        AccessibilityNodeInfo parent = node.getParent();
-        if (parent == null) return node.isVisibleToUser() ? 1 : 0;
-        try {
-            int count = 0;
-            for (int i = 0; i < parent.getChildCount(); i++) {
-                AccessibilityNodeInfo sibling = parent.getChild(i);
-                if (sibling == null) continue;
-                try {
-                    if (sibling.isVisibleToUser()) count++;
-                } finally {
-                    sibling.recycle();
-                }
-            }
-            return count;
-        } finally {
-            parent.recycle();
-        }
-    }
+    /** Refuses only a selection that is itself the active window's content surface. */
+    public static boolean refusesFullScreenSelection(AccessibilityNodeInfo node,
+                                                     AccessibilityNodeInfo rootNode) {
+        if (node == null || rootNode == null) return false;
+        if (node.equals(rootNode)) return true;
 
-    /** Refuses a wildcard that would select every visible candidate in its sibling scope. */
-    public static boolean refusesBroadMatch(int matchCount, int visibleNodeCount) {
-        return visibleNodeCount > 0 && matchCount >= visibleNodeCount;
+        Rect nodeBounds = new Rect();
+        Rect rootBounds = new Rect();
+        node.getBoundsInScreen(nodeBounds);
+        rootNode.getBoundsInScreen(rootBounds);
+        return !nodeBounds.isEmpty() && !rootBounds.isEmpty()
+                && nodeBounds.contains(rootBounds);
     }
 
     public static String getSelectorDescription(AccessibilityNodeInfo node,

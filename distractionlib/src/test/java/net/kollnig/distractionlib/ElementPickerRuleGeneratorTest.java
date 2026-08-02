@@ -1,5 +1,6 @@
 package net.kollnig.distractionlib;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.junit.Before;
@@ -136,32 +137,31 @@ public class ElementPickerRuleGeneratorTest {
     }
 
     @Test
-    public void broadMatchRefusalOnlyRejectsEveryVisibleNode() {
-        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(4, 4));
-        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(5, 4));
-        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(3, 4));
-        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(0, 0));
+    public void refusesFullScreenSelectionsButNotOrdinaryElements() {
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo fullScreenContent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo storyTile = mock(AccessibilityNodeInfo.class);
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(fullScreenContent, 0, 0, 100, 200);
+        setBounds(storyTile, 0, 0, 25, 50);
+
+        assertTrue(ElementPickerRuleGenerator.refusesFullScreenSelection(root, root));
+        assertTrue(ElementPickerRuleGenerator.refusesFullScreenSelection(fullScreenContent, root));
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(storyTile, root));
     }
 
-    @Test
-    public void generalizedMatchSafetyUsesTheWildcardSiblingScope() {
-        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
-        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
-        AccessibilityNodeInfo first = mock(AccessibilityNodeInfo.class);
-        AccessibilityNodeInfo second = mock(AccessibilityNodeInfo.class);
-        when(node.getParent()).thenReturn(parent);
-        when(parent.getChildCount()).thenReturn(2);
-        when(parent.getChild(0)).thenReturn(first);
-        when(parent.getChild(1)).thenReturn(second);
-        when(first.isVisibleToUser()).thenReturn(true);
-        when(second.isVisibleToUser()).thenReturn(true);
-
-        assertEquals(2, ElementPickerRuleGenerator.countVisibleSiblings(node));
+    private static void setBounds(AccessibilityNodeInfo node, int left, int top,
+                                  int right, int bottom) {
+        doAnswer(invocation -> {
+            ((Rect) invocation.getArgument(0)).set(left, top, right, bottom);
+            return null;
+        }).when(node).getBoundsInScreen(any(Rect.class));
     }
 
     @Test
     public void generalizedMatchDoesNotRefuseAMixedVisibleSiblingGroup() {
         AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo firstMatch = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo secondMatch = mock(AccessibilityNodeInfo.class);
@@ -181,18 +181,19 @@ public class ElementPickerRuleGeneratorTest {
         when(firstMatch.isVisibleToUser()).thenReturn(true);
         when(secondMatch.isVisibleToUser()).thenReturn(true);
         when(other.isVisibleToUser()).thenReturn(true);
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(node, 0, 0, 25, 50);
 
         int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
-        int visible = ElementPickerRuleGenerator.countVisibleSiblings(node);
 
         assertEquals(2, matches);
-        assertEquals(3, visible);
-        assertFalse(ElementPickerRuleGenerator.refusesBroadMatch(matches, visible));
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(node, root));
     }
 
     @Test
-    public void generalizedMatchRefusesEveryVisibleSiblingInItsScope() {
+    public void generalizedMatchAllowsEveryVisibleSiblingInItsScope() {
         AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo first = mock(AccessibilityNodeInfo.class);
         AccessibilityNodeInfo second = mock(AccessibilityNodeInfo.class);
@@ -207,13 +208,15 @@ public class ElementPickerRuleGeneratorTest {
             when(child.getClassName()).thenReturn("android.widget.FrameLayout");
             when(child.isVisibleToUser()).thenReturn(true);
         }
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(node, 0, 0, 25, 50);
 
         int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
-        int visible = ElementPickerRuleGenerator.countVisibleSiblings(node);
 
         assertEquals(3, matches);
-        assertEquals(3, visible);
-        assertTrue(ElementPickerRuleGenerator.refusesBroadMatch(matches, visible));
+        // A wildcard leaf deliberately names this sibling group, even when all of its
+        // visible members share the class (for example, a row of story tiles).
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(node, root));
     }
 
     @Test
