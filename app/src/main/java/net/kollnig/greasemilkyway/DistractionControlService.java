@@ -182,7 +182,8 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     public void startPickerMode() {
-        startPickerMode(null, EnumSet.allOf(ElementPickerOverlay.Mode.class));
+        startPickerMode(null, EnumSet.of(
+                ElementPickerOverlay.Mode.BLOCK, ElementPickerOverlay.Mode.BLOCK_ALL));
     }
 
     /** Starts the picker only for the requested app; notification entry remains unscoped. */

@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -71,7 +73,12 @@ public class ElementPickerOverlay {
     private LinearLayout controlBar;
     private TextView infoText;
     private TextView technicalInfoText;
+    private TextView broadMatchText;
     private Button blockAllButton;
+    private Button moveButton;
+    // This full-screen window must be owned so service teardown cannot strand it over the UI.
+    private View confirmationOverlay;
+    private final List<Button> selectionDependentButtons = new ArrayList<>();
 
     private final List<AccessibilityNodeInfo> nodesAtPoint = new ArrayList<>();
     private int currentNodeIndex = 0;
@@ -129,6 +136,8 @@ public class ElementPickerOverlay {
         isActive = false;
         ui.post(() -> {
             removeUndoBar();
+            removeSafely(confirmationOverlay);
+            confirmationOverlay = null;
             removeSafely(touchInterceptor);
             removeSafely(highlightView);
             removeSafely(controlBar);
@@ -137,7 +146,10 @@ public class ElementPickerOverlay {
             controlBar = null;
             infoText = null;
             technicalInfoText = null;
+            broadMatchText = null;
             blockAllButton = null;
+            moveButton = null;
+            selectionDependentButtons.clear();
             lastAppliedRule = null;
             recycleNodes();
         });
@@ -238,81 +250,109 @@ public class ElementPickerOverlay {
         boolean isDarkMode = (service.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
 
-        int bgColor = isDarkMode ? Color.argb(230, 30, 30, 30) : Color.argb(230, 255, 255, 255);
+        int bgColor = isDarkMode ? Color.rgb(35, 35, 35) : Color.WHITE;
         int textColor = isDarkMode ? Color.WHITE : Color.BLACK;
-        int btnTextColor = Color.WHITE;
+        int secondaryTextColor = isDarkMode
+                ? Color.rgb(190, 190, 190) : Color.rgb(106, 113, 131);
+        int primaryColor = isDarkMode ? Color.rgb(142, 155, 232) : Color.rgb(43, 60, 168);
 
         controlBar = new LinearLayout(service);
         controlBar.setOrientation(LinearLayout.VERTICAL);
-        controlBar.setBackgroundColor(bgColor);
-        int pad = dpToPx(12);
+        setControlBarBackground(bgColor);
+        controlBar.setElevation(dpToPx(12));
+        int pad = dpToPx(16);
         controlBar.setPadding(pad, pad, pad, pad);
-
-        // Two rows, split by what the buttons are for. Seven equally weighted buttons on one
-        // row left about 27dp of text width each on a normal phone, against the ~55dp a word
-        // like "Shallower" needs, so every label wrapped or truncated. Adjusting the selection
-        // and acting on it are also different kinds of decision, and reading as one undivided
-        // strip of buttons was its own source of confusion.
-        LinearLayout selectionRow = new LinearLayout(service);
-        selectionRow.setOrientation(LinearLayout.HORIZONTAL);
-        selectionRow.setGravity(Gravity.CENTER_VERTICAL);
 
         infoText = new TextView(service);
         infoText.setTextColor(textColor);
-        infoText.setTextSize(13f);
-        infoText.setText(service.getString(R.string.picker_hint));
-        infoText.setMaxLines(1);
-        infoText.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
-        selectionRow.addView(infoText, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        // The steppers sit beside the description because they change what it describes.
-        selectionRow.addView(createIconButton(service.getString(R.string.picker_shallower),
-                textColor, v -> cycleShallower()));
-        selectionRow.addView(createIconButton(service.getString(R.string.picker_deeper),
-                textColor, v -> cycleDeeper()));
-        // Kept, because the bar can land on top of the very element being picked.
-        selectionRow.addView(createIconButton(service.getString(R.string.picker_move),
-                textColor, v -> toggleControlBarPosition()));
-        selectionRow.addView(createIconButton(service.getString(R.string.picker_cancel),
-                textColor, v -> dismissPicker()));
-
-        controlBar.addView(selectionRow);
+        infoText.setTextSize(18f);
+        infoText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        infoText.setText(R.string.picker_hint);
+        infoText.setMaxLines(2);
+        controlBar.addView(infoText);
 
         technicalInfoText = new TextView(service);
-        technicalInfoText.setTextColor(textColor);
-        technicalInfoText.setTextSize(11f);
+        technicalInfoText.setTextColor(secondaryTextColor);
+        technicalInfoText.setTextSize(12f);
         technicalInfoText.setMaxLines(1);
         technicalInfoText.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
-        technicalInfoText.setText(service.getString(R.string.picker_hint));
-        controlBar.addView(technicalInfoText);
+        technicalInfoText.setVisibility(View.GONE);
+        LinearLayout.LayoutParams technicalParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        technicalParams.topMargin = dpToPx(4);
+        controlBar.addView(technicalInfoText, technicalParams);
 
-        LinearLayout buttonRow = new LinearLayout(service);
-        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
-        buttonRow.setGravity(Gravity.CENTER);
-        buttonRow.setPadding(0, dpToPx(8), 0, 0);
+        LinearLayout selectionRow = new LinearLayout(service);
+        selectionRow.setOrientation(LinearLayout.HORIZONTAL);
+        selectionRow.setPadding(0, dpToPx(12), 0, 0);
+        Button selectLess = createSecondaryButton(service.getString(R.string.picker_deeper),
+                textColor, v -> cycleDeeper());
+        Button selectMore = createSecondaryButton(service.getString(R.string.picker_shallower),
+                textColor, v -> cycleShallower());
+        selectLess.setEnabled(false);
+        selectMore.setEnabled(false);
+        selectLess.setAlpha(0.45f);
+        selectMore.setAlpha(0.45f);
+        selectionDependentButtons.add(selectLess);
+        selectionDependentButtons.add(selectMore);
+        selectionRow.addView(selectLess, createButtonParams());
+        selectionRow.addView(selectMore, createButtonParams());
+        controlBar.addView(selectionRow);
 
-        if (allowedModes.contains(Mode.BLOCK)) {
-            Button blockBtn = createButton(service.getString(R.string.picker_block),
-                    Color.argb(200, 200, 40, 40), btnTextColor);
-            blockBtn.setOnClickListener(v -> confirmBlock());
-            buttonRow.addView(blockBtn, createButtonParams());
-        }
+        LinearLayout panelRow = new LinearLayout(service);
+        panelRow.setOrientation(LinearLayout.HORIZONTAL);
+        panelRow.setPadding(0, dpToPx(4), 0, 0);
+        // Always available: moving the sheet is how the user selects content initially under it.
+        moveButton = createSecondaryButton("", textColor, v -> toggleControlBarPosition());
+        updateMoveButtonLabel();
+        panelRow.addView(moveButton, createButtonParams());
+        Button closeButton = createSecondaryButton(service.getString(R.string.picker_close),
+                textColor, v -> dismissPicker());
+        closeButton.setContentDescription(service.getString(R.string.picker_close));
+        panelRow.addView(closeButton, createButtonParams());
+        controlBar.addView(panelRow);
+
+        LinearLayout actions = new LinearLayout(service);
+        actions.setOrientation(LinearLayout.VERTICAL);
+        actions.setPadding(0, dpToPx(12), 0, 0);
+
+        broadMatchText = new TextView(service);
+        broadMatchText.setTextColor(secondaryTextColor);
+        broadMatchText.setTextSize(12f);
+        broadMatchText.setVisibility(View.GONE);
+        LinearLayout.LayoutParams broadMatchParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        broadMatchParams.bottomMargin = dpToPx(8);
+        actions.addView(broadMatchText, broadMatchParams);
+
         if (allowedModes.contains(Mode.BLOCK_ALL)) {
-            blockAllButton = createButton(service.getString(R.string.picker_block_all),
-                    Color.argb(200, 200, 80, 40), btnTextColor);
+            blockAllButton = createPrimaryButton(service.getString(R.string.picker_block_all),
+                    primaryColor);
             blockAllButton.setEnabled(false);
+            blockAllButton.setAlpha(0.45f);
             blockAllButton.setOnClickListener(v -> confirmBlockAll());
-            buttonRow.addView(blockAllButton, createButtonParams());
+            selectionDependentButtons.add(blockAllButton);
+            actions.addView(blockAllButton, fullWidthButtonParams(0));
+        }
+        if (allowedModes.contains(Mode.BLOCK)) {
+            Button blockBtn = createSecondaryButton(service.getString(R.string.picker_block),
+                    textColor, v -> confirmBlock());
+            blockBtn.setEnabled(false);
+            selectionDependentButtons.add(blockBtn);
+            actions.addView(blockBtn, fullWidthButtonParams(
+                    allowedModes.contains(Mode.BLOCK_ALL) ? dpToPx(8) : 0));
         }
         if (allowedModes.contains(Mode.NAVIGATE)) {
-            Button openBtn = createButton(service.getString(R.string.picker_open),
-                    Color.argb(200, 40, 120, 200), btnTextColor);
+            Button openBtn = createPrimaryButton(service.getString(R.string.picker_open),
+                    primaryColor);
+            openBtn.setEnabled(false);
             openBtn.setOnClickListener(v -> confirmNavigate());
-            buttonRow.addView(openBtn, createButtonParams());
+            selectionDependentButtons.add(openBtn);
+            actions.addView(openBtn, fullWidthButtonParams(
+                    allowedModes.contains(Mode.BLOCK) || allowedModes.contains(Mode.BLOCK_ALL)
+                            ? dpToPx(8) : 0));
         }
-
-        controlBar.addView(buttonRow);
+        controlBar.addView(actions);
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -322,7 +362,7 @@ public class ElementPickerOverlay {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        params.gravity = (isAtBottom ? Gravity.BOTTOM : Gravity.TOP) | Gravity.START;
+        params.gravity = controlBarGravity(isAtBottom);
 
         windowManager.addView(controlBar, params);
     }
@@ -337,39 +377,74 @@ public class ElementPickerOverlay {
             isAtBottom = !isAtBottom;
             WindowManager.LayoutParams params =
                     (WindowManager.LayoutParams) controlBar.getLayoutParams();
-            params.gravity = (isAtBottom ? Gravity.BOTTOM : Gravity.TOP) | Gravity.START;
+            params.gravity = controlBarGravity(isAtBottom);
             windowManager.updateViewLayout(controlBar, params);
+            boolean isDarkMode = (service.getResources().getConfiguration().uiMode
+                    & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+            setControlBarBackground(isDarkMode ? Color.rgb(35, 35, 35) : Color.WHITE);
+            updateMoveButtonLabel();
+            repositionUndoBar();
         }
     }
 
-    /**
-     * A compact, unpainted button for the selection row. Sized to its glyph rather than sharing
-     * the row's width, so the description beside it keeps everything left over.
-     */
-    private Button createIconButton(String glyph, int textColor, View.OnClickListener onClick) {
+    static int controlBarGravity(boolean atBottom) {
+        return (atBottom ? Gravity.BOTTOM : Gravity.TOP) | Gravity.START;
+    }
+
+    static int undoBarGravity(boolean controlBarAtBottom) {
+        return (controlBarAtBottom ? Gravity.TOP : Gravity.BOTTOM) | Gravity.START;
+    }
+
+    private void setControlBarBackground(int color) {
+        if (controlBar == null) {
+            return;
+        }
+        GradientDrawable surface = new GradientDrawable();
+        surface.setColor(color);
+        float radius = dpToPx(24);
+        surface.setCornerRadii(isAtBottom
+                ? new float[]{radius, radius, radius, radius, 0, 0, 0, 0}
+                : new float[]{0, 0, 0, 0, radius, radius, radius, radius});
+        controlBar.setBackground(surface);
+    }
+
+    private void updateMoveButtonLabel() {
+        if (moveButton != null) {
+            moveButton.setText(isAtBottom
+                    ? R.string.picker_move_to_top : R.string.picker_move_to_bottom);
+        }
+    }
+
+    private Button createSecondaryButton(String label, int textColor, View.OnClickListener onClick) {
         Button btn = new Button(service);
-        btn.setText(glyph);
-        btn.setTextSize(15f);
+        btn.setText(label);
+        btn.setTextSize(14f);
         btn.setAllCaps(false);
-        btn.setBackgroundColor(Color.TRANSPARENT);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.TRANSPARENT);
+        background.setStroke(dpToPx(1), Color.argb(70,
+                Color.red(textColor), Color.green(textColor), Color.blue(textColor)));
+        background.setCornerRadius(dpToPx(24));
+        btn.setBackground(background);
         btn.setTextColor(textColor);
-        int pad = dpToPx(10);
-        btn.setPadding(pad, 0, pad, 0);
-        btn.setMinWidth(0);
-        btn.setMinimumWidth(0);
+        btn.setPadding(dpToPx(8), 0, dpToPx(8), 0);
         btn.setMinHeight(dpToPx(48));
         btn.setMinimumHeight(dpToPx(48));
         btn.setOnClickListener(onClick);
         return btn;
     }
 
-    private Button createButton(String text, int bgColor, int textColor) {
+    private Button createPrimaryButton(String text, int bgColor) {
         Button btn = new Button(service);
         btn.setText(text);
-        btn.setTextSize(12f);
+        btn.setTextSize(14f);
         btn.setAllCaps(false);
-        btn.setBackgroundColor(bgColor);
-        btn.setTextColor(textColor);
+        btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(bgColor);
+        background.setCornerRadius(dpToPx(24));
+        btn.setBackground(background);
+        btn.setTextColor(Color.WHITE);
         int hPad = dpToPx(12);
         int vPad = dpToPx(6);
         btn.setPadding(hPad, vPad, hPad, vPad);
@@ -385,6 +460,13 @@ public class ElementPickerOverlay {
         return params;
     }
 
+    private LinearLayout.LayoutParams fullWidthButtonParams(int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.topMargin = topMargin;
+        return params;
+    }
+
     private void handleTap(float x, float y) {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null) {
@@ -397,6 +479,7 @@ public class ElementPickerOverlay {
             if (targetPackageName != null && !targetPackageName.equals(currentPackageName)) {
                 recycleNodes();
                 updateInfo(service.getString(R.string.picker_wrong_app));
+                clearSelectionDetails();
                 hideHighlight();
                 return;
             }
@@ -406,6 +489,7 @@ public class ElementPickerOverlay {
 
             if (nodesAtPoint.isEmpty()) {
                 updateInfo(service.getString(R.string.picker_no_element));
+                clearSelectionDetails();
                 hideHighlight();
                 return;
             }
@@ -491,8 +575,9 @@ public class ElementPickerOverlay {
 
         String description = ElementPickerRuleGenerator.plainLanguageDescription(node);
         String depth = "(" + (currentNodeIndex + 1) + "/" + nodesAtPoint.size() + ")";
-        updateInfo(depth + " " + description);
-        updateTechnicalInfo(ElementPickerRuleGenerator.describeNode(node));
+        updateInfo(description);
+        updateTechnicalInfo(depth + " " + ElementPickerRuleGenerator.describeNode(node));
+        setSelectionControlsEnabled(true);
         updateBlockAllButton(node);
     }
 
@@ -511,6 +596,28 @@ public class ElementPickerOverlay {
     private void updateTechnicalInfo(String text) {
         if (technicalInfoText != null) {
             technicalInfoText.setText(text);
+            technicalInfoText.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void clearSelectionDetails() {
+        if (technicalInfoText != null) {
+            technicalInfoText.setText(null);
+            technicalInfoText.setVisibility(View.GONE);
+        }
+        if (broadMatchText != null) {
+            broadMatchText.setVisibility(View.GONE);
+        }
+        if (blockAllButton != null) {
+            blockAllButton.setText(R.string.picker_block_all);
+        }
+        setSelectionControlsEnabled(false);
+    }
+
+    private void setSelectionControlsEnabled(boolean enabled) {
+        for (Button button : selectionDependentButtons) {
+            button.setEnabled(enabled);
+            button.setAlpha(enabled ? 1f : 0.45f);
         }
     }
 
@@ -521,9 +628,17 @@ public class ElementPickerOverlay {
         boolean tooBroad = ElementPickerRuleGenerator.refusesBroadMatch(matches, visible);
         blockAllButton.setText(service.getString(R.string.picker_block_all_count, matches));
         blockAllButton.setEnabled(matches > 0 && !tooBroad);
+        blockAllButton.setAlpha(matches > 0 && !tooBroad ? 1f : 0.45f);
         blockAllButton.setContentDescription(tooBroad
                 ? service.getString(R.string.picker_block_all_too_broad)
                 : service.getString(R.string.picker_block_all_count, matches));
+        if (broadMatchText != null) {
+            broadMatchText.setText(tooBroad
+                    ? service.getString(R.string.picker_block_all_too_broad)
+                    : service.getResources().getQuantityString(
+                            R.plurals.picker_similar_matches, matches, matches));
+            broadMatchText.setVisibility(matches > 0 ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void confirmBlock() {
@@ -697,10 +812,8 @@ public class ElementPickerOverlay {
         btnRow.setGravity(Gravity.END);
         btnRow.setPadding(0, dpToPx(16), 0, 0);
 
-        Button cancelBtn = createButton(service.getString(R.string.picker_dialog_cancel),
-                isDarkMode ? Color.argb(200, 80, 80, 80) : Color.argb(200, 200, 200, 200),
-                isDarkMode ? Color.WHITE : Color.BLACK);
-        cancelBtn.setOnClickListener(v -> removeSafely(container));
+        Button cancelBtn = createSecondaryButton(service.getString(R.string.picker_dialog_cancel),
+                isDarkMode ? Color.WHITE : Color.BLACK, v -> removeConfirmationOverlay(container));
 
         // The confirm button names the action it performs. It previously read "Block" in every
         // mode, so the Open flow ended on a red button offering to block.
@@ -709,11 +822,10 @@ public class ElementPickerOverlay {
                 : mode == Mode.NAVIGATE
                 ? R.string.picker_dialog_confirm_open
                 : R.string.picker_dialog_confirm;
-        Button confirmBtn = createButton(service.getString(confirmLabel),
+        Button confirmBtn = createPrimaryButton(service.getString(confirmLabel),
                 mode == Mode.NAVIGATE
                         ? Color.argb(200, 40, 120, 200)
-                        : Color.argb(200, 200, 40, 40),
-                Color.WHITE);
+                        : Color.argb(200, 200, 40, 40));
         confirmBtn.setOnClickListener(v -> {
             String comment = commentInput.getText().toString().trim();
             if (comment.isEmpty()) {
@@ -743,9 +855,11 @@ public class ElementPickerOverlay {
             }
             lastAppliedRule = finalRule;
             lastAppliedMode = mode;
-            removeSafely(container);
+            removeConfirmationOverlay(container);
             hideHighlight();
             recycleNodes();
+            updateInfo(service.getString(R.string.picker_hint));
+            clearSelectionDetails();
             showUndoBar(comment);
         });
 
@@ -758,7 +872,7 @@ public class ElementPickerOverlay {
         card.addView(btnRow);
         container.addView(card, cardParams);
 
-        container.setOnClickListener(v -> removeSafely(container));
+        container.setOnClickListener(v -> removeConfirmationOverlay(container));
         card.setOnClickListener(v -> { });
 
         WindowManager.LayoutParams overlayParams = new WindowManager.LayoutParams(
@@ -769,7 +883,16 @@ public class ElementPickerOverlay {
                 PixelFormat.TRANSLUCENT);
         overlayParams.gravity = Gravity.TOP | Gravity.START;
 
+        removeSafely(confirmationOverlay);
+        confirmationOverlay = container;
         windowManager.addView(container, overlayParams);
+    }
+
+    private void removeConfirmationOverlay(View overlay) {
+        removeSafely(overlay);
+        if (confirmationOverlay == overlay) {
+            confirmationOverlay = null;
+        }
     }
 
     private void showUndoBar(String ruleDescription) {
@@ -847,8 +970,7 @@ public class ElementPickerOverlay {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        // Show undo bar on opposite side of control bar to avoid overlap
-        params.gravity = (isAtBottom ? Gravity.TOP : Gravity.BOTTOM) | Gravity.START;
+        params.gravity = undoBarGravity(isAtBottom);
 
         windowManager.addView(undoBar, params);
 
@@ -867,6 +989,20 @@ public class ElementPickerOverlay {
         if (undoBar != null) {
             removeSafely(undoBar);
             undoBar = null;
+        }
+    }
+
+    private void repositionUndoBar() {
+        if (undoBar == null) {
+            return;
+        }
+        try {
+            WindowManager.LayoutParams params =
+                    (WindowManager.LayoutParams) undoBar.getLayoutParams();
+            params.gravity = undoBarGravity(isAtBottom);
+            windowManager.updateViewLayout(undoBar, params);
+        } catch (Exception e) {
+            Log.e(TAG, "Error moving undo bar", e);
         }
     }
 
