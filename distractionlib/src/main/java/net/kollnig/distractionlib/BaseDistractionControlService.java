@@ -76,7 +76,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private final Map<String, BlockedElement> blockedElements = new HashMap<>();
     private final Set<String> activeRuleKeys = new HashSet<>();
     private final AutoNavigator autoNavigator = new AutoNavigator();
-    private final Runnable pendingClear = this::clearOverlaysIfActiveWindowIsNonTarget;
+    private final Runnable pendingClear = this::runClearCheck;
     private final Runnable navigationAttempt = this::attemptNavigation;
 
     private WindowManager windowManager;
@@ -84,6 +84,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
     private boolean sentinelPackagesActive;
     private boolean screenOn = true;
     private boolean processEventScheduled;
+    private boolean clearCheckScheduled;
     private long lastProcessUptimeMs;
     private String cachedLauncherPackage;
     private String pauseNotificationPackage;
@@ -115,7 +116,12 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root == null) {
+                // Routine while a window is being torn down, which is exactly when the user is
+                // on their way out of the app. Returning would leave the overlays attached with
+                // nothing scheduled to look at them again, so hand over to the departure check
+                // instead of reading an unreadable screen as a reason to do nothing.
                 Log.w(getLogTag(), "No root window available");
+                rearmClearCheck();
                 return;
             }
             try {
@@ -146,6 +152,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             }
         } catch (Exception e) {
             Log.e(getLogTag(), "Error processing accessibility event", e);
+            rearmClearCheck();
         }
     };
 
@@ -203,7 +210,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     protected final void reloadRulesFromSource() {
         cancelProcessEvent();
-        ui.removeCallbacks(pendingClear);
+        cancelClearCheck();
         ui.removeCallbacks(navigationAttempt);
         rules.clear();
         List<FilterRule> loadedRules = loadRules();
@@ -227,7 +234,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     protected final void reevaluateBlockingState() {
         cancelProcessEvent();
-        ui.removeCallbacks(pendingClear);
+        cancelClearCheck();
         if (!shouldProcessRules()) {
             forceClearAllOverlays();
             return;
@@ -280,7 +287,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
                     screenOn = false;
                     Log.d(getLogTag(), "Screen off - pausing accessibility processing");
                     cancelProcessEvent();
-                    ui.removeCallbacks(pendingClear);
+                    cancelClearCheck();
                     ui.removeCallbacks(navigationAttempt);
                     // The visit ends with the screen. Unlocking back into the same app is a
                     // new visit and should navigate again, so the tracked package is dropped
@@ -337,31 +344,45 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             onForegroundPackageChanged(packageName);
         }
 
+        boolean isLauncher = isLauncherPackage(packageName);
         boolean isNonTarget = packageName.equals(getPackageName())
-                || packageName.equals("com.android.systemui")
-                || isLauncherPackage(packageName)
+                || packageName.equals(SYSTEM_UI_PACKAGE)
+                || isLauncher
                 || !hasMatchingRule(packageName);
 
         if (isNonTarget) {
             cancelProcessEvent();
-            ui.removeCallbacks(pendingClear);
+            // State/topology events attributed to the launcher mean Home or Overview is already
+            // replacing the app. Clear now so app overlays never outlive that transition; only
+            // ambiguous foreign events need the delayed active-window reinspection below.
+            if (isLauncher
+                    && (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                    || eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED)) {
+                cancelClearCheck();
+                leaveTargetApp();
+                return;
+            }
             // Nothing is attached, so there is nothing to tear down. Skip the
             // delayed check entirely rather than paying for a root-window
             // lookup that would find no work to do.
             if (!hasStateToClear()) {
+                cancelClearCheck();
                 return;
             }
             // SystemUI often reports notification-shade movement as content or
             // scroll changes rather than a clean window-state change. Delay,
             // then inspect the active root window before clearing so transient
             // notifications do not flicker target-app overlays.
-            ui.postDelayed(pendingClear, CLEAR_OVERLAYS_DELAY_MS);
+            scheduleClearCheck();
             return;
         }
 
-        // Target package event — cancel any pending clear from a transient
-        // foreign window, then re-evaluate overlays.
-        ui.removeCallbacks(pendingClear);
+        // A scheduled departure check is deliberately left armed here. An app goes on emitting
+        // content and scroll events while it is being animated away, so cancelling on the
+        // strength of the event's package would discard the check that was about to notice the
+        // user had left -- and nothing would arm another. The check re-reads the active window
+        // before clearing anything, so leaving it armed costs one root lookup and can never
+        // clear overlays out from under an app the user is still in.
 
         if (!shouldProcessRules()) {
             cancelPauseNotification();
@@ -641,6 +662,43 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             Choreographer.getInstance().removeFrameCallback(processEventFrame);
             processEventScheduled = false;
         }
+    }
+
+    private void runClearCheck() {
+        clearCheckScheduled = false;
+        clearOverlaysIfActiveWindowIsNonTarget();
+    }
+
+    /**
+     * Arms the check that decides whether the user has left the app being blocked.
+     *
+     * <p>The deadline is set by the first event suggesting a departure and is deliberately not
+     * pushed back by later ones. A launcher being scrolled, or a shade being dragged, emits
+     * events faster than the delay, so re-arming on each one would hold the check off for as
+     * long as the stream lasted -- with the previous app's overlays still on screen.
+     */
+    private void scheduleClearCheck() {
+        if (clearCheckScheduled) {
+            return;
+        }
+        clearCheckScheduled = true;
+        ui.postDelayed(pendingClear, CLEAR_OVERLAYS_DELAY_MS);
+    }
+
+    /**
+     * Arms the departure check if, and only if, there is something attached that would outlive
+     * this pass. Called where a pass has ended without establishing what is on screen: overlays
+     * are already up, so the alternative is leaving them there with nothing due to run.
+     */
+    private void rearmClearCheck() {
+        if (hasStateToClear()) {
+            scheduleClearCheck();
+        }
+    }
+
+    private void cancelClearCheck() {
+        ui.removeCallbacks(pendingClear);
+        clearCheckScheduled = false;
     }
 
     private void clearOverlaysIfActiveWindowIsNonTarget() {
@@ -1347,7 +1405,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
 
     @Override
     public void onInterrupt() {
-        ui.removeCallbacks(pendingClear);
+        cancelClearCheck();
         cancelPauseNotification();
         forceClearAllOverlays();
     }
@@ -1357,7 +1415,7 @@ public abstract class BaseDistractionControlService extends AccessibilityService
         super.onDestroy();
         try {
             cancelProcessEvent();
-            ui.removeCallbacks(pendingClear);
+            cancelClearCheck();
             ui.removeCallbacks(navigationAttempt);
             cancelPauseNotification();
             onServiceTeardown();
