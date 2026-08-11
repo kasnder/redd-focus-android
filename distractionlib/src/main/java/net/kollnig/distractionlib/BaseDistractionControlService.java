@@ -344,13 +344,24 @@ public abstract class BaseDistractionControlService extends AccessibilityService
             onForegroundPackageChanged(packageName);
         }
 
+        boolean isLauncher = isLauncherPackage(packageName);
         boolean isNonTarget = packageName.equals(getPackageName())
-                || packageName.equals("com.android.systemui")
-                || isLauncherPackage(packageName)
+                || packageName.equals(SYSTEM_UI_PACKAGE)
+                || isLauncher
                 || !hasMatchingRule(packageName);
 
         if (isNonTarget) {
             cancelProcessEvent();
+            // State/topology events attributed to the launcher mean Home or Overview is already
+            // replacing the app. Clear now so app overlays never outlive that transition; only
+            // ambiguous foreign events need the delayed active-window reinspection below.
+            if (isLauncher
+                    && (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                    || eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED)) {
+                cancelClearCheck();
+                leaveTargetApp();
+                return;
+            }
             // Nothing is attached, so there is nothing to tear down. Skip the
             // delayed check entirely rather than paying for a root-window
             // lookup that would find no work to do.
