@@ -22,6 +22,7 @@
     
     <!-- Accent Colors -->
     <color name="accent_green">#34C759</color>
+    <color name="state_paused">#B45309</color>
     
     <!-- Callout/Alert Colors (for warnings, errors) -->
     <color name="callout_bg">#FEE2E2</color>

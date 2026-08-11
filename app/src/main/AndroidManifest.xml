@@ -38,6 +38,11 @@
         </activity>
 
         <activity
+            android:name="net.kollnig.greasemilkyway.AppDetailActivity"
+            android:exported="false"
+            android:parentActivityName="net.kollnig.greasemilkyway.MainActivity" />
+
+        <activity
             android:name="net.kollnig.greasemilkyway.CustomRulesActivity"
             android:exported="false"
             android:label="@string/custom_rules_title"

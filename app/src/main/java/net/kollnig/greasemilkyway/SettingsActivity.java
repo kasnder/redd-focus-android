@@ -18,6 +18,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 
 import net.kollnig.distractionlib.FrictionGateActivity;
+import net.kollnig.distractionlib.FilterRuleParser;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -25,6 +26,7 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView tvFrictionGateSubtitle;
     private TextView tvPauseDurationSubtitle;
     private TextView tvNotificationTimeoutSubtitle;
+    private TextView tvCustomRulesSubtitle;
     private Runnable pendingFrictionAction;
 
     private final ActivityResultLauncher<Intent> frictionGateLauncher =
@@ -67,6 +69,7 @@ public class SettingsActivity extends AppCompatActivity {
         tvFrictionGateSubtitle = findViewById(R.id.tv_friction_gate_subtitle);
         tvPauseDurationSubtitle = findViewById(R.id.tv_pause_duration_subtitle);
         tvNotificationTimeoutSubtitle = findViewById(R.id.tv_notification_timeout_subtitle);
+        tvCustomRulesSubtitle = findViewById(R.id.tv_custom_rules_subtitle);
 
         updateSubtitles();
 
@@ -74,20 +77,24 @@ public class SettingsActivity extends AppCompatActivity {
 
         findViewById(R.id.btn_friction_gate).setOnClickListener(v -> runWithFrictionGate(
                 getString(R.string.unlock_friction_settings),
-                () -> showNumberPickerDialog("Friction Gate Words", "Choose number of words (0-15)", 0, 15, config.getFrictionWordCount(), newValue -> {
+                () -> showNumberPickerDialog(getString(R.string.friction_gate_dialog_title),
+                        getString(R.string.friction_gate_dialog_message), 0, 15,
+                        config.getFrictionWordCount(), newValue -> {
             config.setFrictionWordCount(newValue);
             updateSubtitles();
         })));
 
         findViewById(R.id.btn_pause_duration).setOnClickListener(v -> runWithFrictionGate(
                 getString(R.string.unlock_friction_settings),
-                () -> showNumberPickerDialog("Pause Duration", "Choose default pause in minutes (1-120)", 1, 120, config.getPauseDurationMins(), newValue -> {
+                () -> showNumberPickerDialog(getString(R.string.pause_duration_dialog_title),
+                        getString(R.string.pause_duration_dialog_message), 1, 120,
+                        config.getPauseDurationMins(), newValue -> {
             config.setPauseDurationMins(newValue);
             updateSubtitles();
         })));
 
         findViewById(R.id.btn_notification_timeout).setOnClickListener(v -> {
-            final String[] labels = {"Immediate response", "Default (recommended)", "Battery saver"};
+            final String[] labels = getResources().getStringArray(R.array.response_speed_choices);
             final long[] values = {0, 100, 300};
             long current = config.getNotificationTimeoutMs();
             int checkedItem = 1;
@@ -98,7 +105,7 @@ public class SettingsActivity extends AppCompatActivity {
                 }
             }
             new AlertDialog.Builder(this)
-                .setTitle("Response Speed")
+                .setTitle(R.string.response_speed_dialog_title)
                 .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
                     config.setNotificationTimeoutMs(values[which]);
                     updateSubtitles();
@@ -129,23 +136,45 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void updateSubtitles() {
         if (tvFrictionGateSubtitle != null) {
-            tvFrictionGateSubtitle.setText(getString(R.string.friction_gate_words, config.getFrictionWordCount()));
+            int words = config.getFrictionWordCount();
+            tvFrictionGateSubtitle.setText(getResources().getQuantityString(
+                    R.plurals.friction_gate_word_count, words, words));
         }
         if (tvPauseDurationSubtitle != null) {
-            tvPauseDurationSubtitle.setText(getString(R.string.pause_duration_minutes, config.getPauseDurationMins()));
+            int minutes = config.getPauseDurationMins();
+            tvPauseDurationSubtitle.setText(getResources().getQuantityString(
+                    R.plurals.pause_duration_minute_count, minutes, minutes));
         }
         if (tvNotificationTimeoutSubtitle != null) {
             long ms = config.getNotificationTimeoutMs();
             String label;
             if (ms <= 0) {
-                label = getString(R.string.response_speed_immediate);
+                label = getString(R.string.response_speed_immediate_consequence);
             } else if (ms >= 300) {
-                label = getString(R.string.response_speed_battery_saver);
+                label = getString(R.string.response_speed_battery_consequence);
             } else {
-                label = getString(R.string.response_speed_default);
+                label = getString(R.string.response_speed_default_consequence);
             }
             tvNotificationTimeoutSubtitle.setText(label);
         }
+        if (tvCustomRulesSubtitle != null) {
+            int count = 0;
+            FilterRuleParser parser = new FilterRuleParser();
+            String[] blocking = config.getCustomRules();
+            String[] navigation = config.getCustomNavigationRules();
+            if (blocking != null) count += parser.parseRules(blocking).size();
+            if (navigation != null) count += parser.parseRules(navigation).size();
+            String ruleCount = getResources().getQuantityString(
+                    R.plurals.rule_count, count, count);
+            tvCustomRulesSubtitle.setText(
+                    getString(R.string.custom_rules_count_summary, ruleCount));
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (config != null) updateSubtitles();
     }
 
     private void showNumberPickerDialog(String title, String message, int min, int max, int currentValue, final NumberPickerCallback callback) {

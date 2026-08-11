@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="custom_rules_list_title">Custom rules</string>
+    <string name="custom_rules_empty">No custom rules yet</string>
+    <string name="custom_rules_add">Hide something new</string>
+    <string name="custom_rules_edit_text">Edit as text (expert)</string>
+    <string name="custom_rules_back_to_list">Back to rule list</string>
+    <string name="custom_rules_editor_hint">One rule per line</string>
+    <string name="custom_rules_count_summary">%1$s · edit as text</string>
+    <plurals name="custom_rule_multiple_parts">
+        <item quantity="one">%d rule</item>
+        <item quantity="other">%d rules working together</item>
+    </plurals>
+    <string name="custom_rule_app_off">App is off</string>
+    <string name="custom_rule_edit_title">Edit custom rule</string>
+    <string name="custom_rule_name">Name</string>
+    <string name="custom_rule_raw_label">Rule text</string>
+    <string name="custom_rule_rename">Rename</string>
+    <string name="custom_rule_delete">Delete rule</string>
+    <string name="custom_rule_disable_gate">Turn off %1$s</string>
+    <string name="custom_rule_delete_gate">Delete %1$s</string>
+    <string name="custom_rule_name_required">Enter a name</string>
+    <string name="custom_rule_name_invalid">Names cannot contain ##</string>
+    <string name="custom_rule_renamed">Rule renamed</string>
+
+    <string name="settings_group_blocking">Blocking</string>
+    <string name="settings_group_friction">Friction gate</string>
+    <string name="settings_group_advanced">Advanced</string>
+    <string name="friction_gate_settings_title_plain">Before turning a block off</string>
+    <plurals name="friction_gate_word_count">
+        <item quantity="one">Type %d word</item>
+        <item quantity="other">Type %d words</item>
+    </plurals>
+    <string name="pause_duration_dialog_title">Default pause length</string>
+    <string name="pause_duration_dialog_message">Choose a default pause from 1 to 120 minutes</string>
+    <plurals name="pause_duration_minute_count">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <string name="friction_gate_dialog_title">Friction gate words</string>
+    <string name="friction_gate_dialog_message">Choose the number of words required, from 0 to 15</string>
+    <string name="response_speed_dialog_title">Response speed</string>
+    <string name="response_speed_immediate_consequence">Immediate — uses more battery</string>
+    <string name="response_speed_default_consequence">Default — balanced</string>
+    <string name="response_speed_battery_consequence">Battery saver — reacts a moment later</string>
+    <string name="navigation_section_title">When %1$s opens</string>
+    <string name="blocking_section_title">Hide distractions</string>
+    <string name="app_detail_off">Blocking is off</string>
+    <string name="app_detail_paused_until">Paused · resumes %1$s</string>
+    <string name="hide_something_new">Hide something new</string>
+    <string name="pause_default_placeholder">Pause</string>
+    <string name="open_place_on_launch">Open a place on launch instead</string>
+    <string name="picker_guided_title">Hide something new</string>
+    <string name="picker_guided_message">We’ll open %1$s with the picker on. Tap the thing that distracts you; you can adjust the selection before saving.</string>
+    <string name="picker_service_unavailable">Enable accessibility access before starting the picker.</string>
+    <string name="picker_app_unavailable">This app cannot be opened automatically.</string>
+    <string name="pause_or_disable_title">Pause or turn off?</string>
+    <string name="pause_all">Pause all</string>
+    <string name="pause_all_title">Pause all active apps</string>
+    <string name="not_installed_expand">Not installed · tap to show</string>
+    <string name="not_installed_collapse">Not installed · tap to hide</string>
+    <plurals name="pause_for_minutes">
+        <item quantity="one">Pause for %d minute</item>
+        <item quantity="other">Pause for %d minutes</item>
+    </plurals>
+    <plurals name="pause_chip_seconds">
+        <item quantity="one">%d sec</item>
+        <item quantity="other">%d sec</item>
+    </plurals>
+    <plurals name="pause_chip_minute_value">
+        <item quantity="one">%d min</item>
+        <item quantity="other">%d min</item>
+    </plurals>
+    <plurals name="pause_chip_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <string name="pause_chip_default">%1$s · default</string>
+    <plurals name="pause_recommended_message">
+        <item quantity="one">We recommend pausing for %d minute. Blocking will turn back on automatically.</item>
+        <item quantity="other">We recommend pausing for %d minutes. Blocking will turn back on automatically.</item>
+    </plurals>
+    <string name="disable_permanently_action">Turn off permanently</string>
+    <string name="chevron_collapsed" translatable="false">›</string>
+    <string name="chevron_expanded" translatable="false">⌄</string>
+    <string-array name="response_speed_choices">
+        <item>@string/response_speed_immediate_consequence</item>
+        <item>@string/response_speed_default_consequence</item>
+        <item>@string/response_speed_battery_consequence</item>
+    </string-array>
+</resources>

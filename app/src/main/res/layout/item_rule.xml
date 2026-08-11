@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:paddingStart="32dp"
     android:paddingTop="12dp"
-    android:paddingEnd="16dp"
+    android:paddingEnd="8dp"
     android:paddingBottom="12dp">
 
     <TextView
@@ -32,14 +32,12 @@
     <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/rule_switch"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:minWidth="16dp"
-        android:minHeight="16dp"
-        android:scaleX="0.75"
-        android:scaleY="0.75"
+        android:layout_height="48dp"
+        android:minWidth="64dp"
+        android:minHeight="48dp"
         app:useMaterialThemeColors="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-</androidx.constraintlayout.widget.ConstraintLayout> 
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -723,6 +723,61 @@ public class ServiceConfigTest {
         assertEquals(bundled + 1, config.getNavigationRules().size());
     }
 
+    @Test
+    public void disableAllNavigationRulesOnlyClearsTheRequestedPackage() {
+        FilterRule first = createRule("com.example.one##viewId=one");
+        FilterRule second = createRule("com.example.one##viewId=two");
+        FilterRule otherPackage = createRule("com.example.two##viewId=one");
+        config.addCustomNavigationRule(first.ruleString);
+        config.addCustomNavigationRule(second.ruleString);
+        config.addCustomNavigationRule(otherPackage.ruleString);
+        config.setNavigationRuleEnabled(first, true);
+        config.setNavigationRuleEnabled(otherPackage, true);
+
+        config.disableAllNavigationRules("com.example.one");
+
+        assertFalse(config.isNavigationRuleEnabled(first));
+        assertFalse(config.isNavigationRuleEnabled(second));
+        assertTrue(config.isNavigationRuleEnabled(otherPackage));
+    }
+
+    @Test
+    public void renameCustomRulesRenamesEveryPartOfAMergedRowWithoutChangingState() {
+        String first = "com.example.app##viewId=one##comment=Old name";
+        String second = "com.example.app##viewId=two##comment=Old name";
+        FilterRule firstRule = createRule(first);
+        FilterRule secondRule = createRule(second);
+        config.addCustomRule(first);
+        config.addCustomRule(second);
+        config.setRuleEnabled(firstRule, true);
+        config.setRuleEnabled(secondRule, true);
+
+        config.renameCustomRules(new String[]{first, second}, "New name");
+
+        assertArrayEquals(new String[]{
+                "com.example.app##viewId=one##comment=New name",
+                "com.example.app##viewId=two##comment=New name"
+        }, config.getCustomRules());
+        assertTrue(config.isRuleEnabled(createRule(
+                "com.example.app##viewId=one##comment=New name")));
+        assertTrue(config.isRuleEnabled(createRule(
+                "com.example.app##viewId=two##comment=New name")));
+    }
+
+    @Test
+    public void renameCustomNavigationRulesDoesNotChangeTheBlockingStore() {
+        String navigation = "com.example.app##viewId=nav##comment=Old";
+        String blocking = "com.example.app##viewId=block##comment=Old";
+        config.addCustomNavigationRule(navigation);
+        config.addCustomRule(blocking);
+
+        config.renameCustomNavigationRules(new String[]{navigation}, "New");
+
+        assertArrayEquals(new String[]{"com.example.app##viewId=nav##comment=New"},
+                config.getCustomNavigationRules());
+        assertArrayEquals(new String[]{blocking}, config.getCustomRules());
+    }
+
     // --- One navigation rule per app ---
 
     @Test

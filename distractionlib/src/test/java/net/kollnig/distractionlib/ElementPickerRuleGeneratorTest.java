@@ -1,5 +1,6 @@
 package net.kollnig.distractionlib;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.junit.Before;
@@ -112,6 +113,110 @@ public class ElementPickerRuleGeneratorTest {
         String desc = ElementPickerRuleGenerator.describeNode(node);
 
         assertEquals("Button", desc);
+    }
+
+    @Test
+    public void plainLanguageDescriptionUsesLabelBeforeRole() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        when(node.getContentDescription()).thenReturn("Search");
+        when(node.getText()).thenReturn("Ignored");
+        when(node.getClassName()).thenReturn("android.widget.Button");
+
+        assertEquals("Search", ElementPickerRuleGenerator.plainLanguageDescription(node));
+    }
+
+    @Test
+    public void plainLanguageDescriptionMapsCommonRoles() {
+        AccessibilityNodeInfo image = mock(AccessibilityNodeInfo.class);
+        when(image.getClassName()).thenReturn("android.widget.ImageView");
+        AccessibilityNodeInfo list = mock(AccessibilityNodeInfo.class);
+        when(list.getClassName()).thenReturn("androidx.recyclerview.widget.RecyclerView");
+
+        assertEquals("picture", ElementPickerRuleGenerator.plainLanguageDescription(image));
+        assertEquals("list", ElementPickerRuleGenerator.plainLanguageDescription(list));
+    }
+
+    @Test
+    public void refusesFullScreenSelectionsButNotOrdinaryElements() {
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo fullScreenContent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo storyTile = mock(AccessibilityNodeInfo.class);
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(fullScreenContent, 0, 0, 100, 200);
+        setBounds(storyTile, 0, 0, 25, 50);
+
+        assertTrue(ElementPickerRuleGenerator.refusesFullScreenSelection(root, root));
+        assertTrue(ElementPickerRuleGenerator.refusesFullScreenSelection(fullScreenContent, root));
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(storyTile, root));
+    }
+
+    private static void setBounds(AccessibilityNodeInfo node, int left, int top,
+                                  int right, int bottom) {
+        doAnswer(invocation -> {
+            ((Rect) invocation.getArgument(0)).set(left, top, right, bottom);
+            return null;
+        }).when(node).getBoundsInScreen(any(Rect.class));
+    }
+
+    @Test
+    public void generalizedMatchDoesNotRefuseAMixedVisibleSiblingGroup() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo firstMatch = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo secondMatch = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo other = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo invisibleMatch = mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);
+        when(node.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(parent.getChildCount()).thenReturn(4);
+        when(parent.getChild(0)).thenReturn(firstMatch);
+        when(parent.getChild(1)).thenReturn(secondMatch);
+        when(parent.getChild(2)).thenReturn(other);
+        when(parent.getChild(3)).thenReturn(invisibleMatch);
+        when(firstMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(secondMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(other.getClassName()).thenReturn("android.widget.TextView");
+        when(invisibleMatch.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(firstMatch.isVisibleToUser()).thenReturn(true);
+        when(secondMatch.isVisibleToUser()).thenReturn(true);
+        when(other.isVisibleToUser()).thenReturn(true);
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(node, 0, 0, 25, 50);
+
+        int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
+
+        assertEquals(2, matches);
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(node, root));
+    }
+
+    @Test
+    public void generalizedMatchAllowsEveryVisibleSiblingInItsScope() {
+        AccessibilityNodeInfo node = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo root = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo parent = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo first = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo second = mock(AccessibilityNodeInfo.class);
+        AccessibilityNodeInfo third = mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);
+        when(node.getClassName()).thenReturn("android.widget.FrameLayout");
+        when(parent.getChildCount()).thenReturn(3);
+        when(parent.getChild(0)).thenReturn(first);
+        when(parent.getChild(1)).thenReturn(second);
+        when(parent.getChild(2)).thenReturn(third);
+        for (AccessibilityNodeInfo child : new AccessibilityNodeInfo[]{first, second, third}) {
+            when(child.getClassName()).thenReturn("android.widget.FrameLayout");
+            when(child.isVisibleToUser()).thenReturn(true);
+        }
+        setBounds(root, 0, 0, 100, 200);
+        setBounds(node, 0, 0, 25, 50);
+
+        int matches = ElementPickerRuleGenerator.countGeneralizedSiblingMatches(node);
+
+        assertEquals(3, matches);
+        // A wildcard leaf deliberately names this sibling group, even when all of its
+        // visible members share the class (for example, a row of story tiles).
+        assertFalse(ElementPickerRuleGenerator.refusesFullScreenSelection(node, root));
     }
 
     @Test

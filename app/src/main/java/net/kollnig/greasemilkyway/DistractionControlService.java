@@ -17,6 +17,7 @@ import net.kollnig.distractionlib.FilterRule;
 import net.kollnig.distractionlib.FilterRuleParser;
 
 import java.util.List;
+import java.util.EnumSet;
 
 public class DistractionControlService extends BaseDistractionControlService {
     private static final String TAG = "DistractionControlService";
@@ -105,6 +106,20 @@ public class DistractionControlService extends BaseDistractionControlService {
                     public void onPickerDismissed() {
                         stopPickerMode();
                     }
+
+                    @Override
+                    public void onPickerDone(String packageName) {
+                        stopPickerMode();
+                        if (packageName == null || packageName.isEmpty()) {
+                            return;
+                        }
+                        Intent detailIntent = new Intent(DistractionControlService.this,
+                                AppDetailActivity.class);
+                        detailIntent.putExtra(AppDetailActivity.EXTRA_PACKAGE_NAME, packageName);
+                        detailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(detailIntent);
+                    }
                 });
 
         pickerReceiver = new BroadcastReceiver() {
@@ -167,13 +182,22 @@ public class DistractionControlService extends BaseDistractionControlService {
     }
 
     public void startPickerMode() {
+        startPickerMode(null, EnumSet.of(
+                ElementPickerOverlay.Mode.BLOCK, ElementPickerOverlay.Mode.BLOCK_ALL));
+    }
+
+    /** Starts the picker only for the requested app; notification entry remains unscoped. */
+    public void startPickerMode(String forPackage, EnumSet<ElementPickerOverlay.Mode> allowedActions) {
         if (pickerOverlay == null || pickerNotification == null) {
             return;
         }
 
         Log.i(TAG, "Starting picker mode");
         clearCurrentOverlays();
-        pickerOverlay.show();
+        if (pickerOverlay.isActive()) {
+            pickerOverlay.hide();
+        }
+        pickerOverlay.show(forPackage, allowedActions);
         pickerNotification.showPickerActiveNotification();
     }
 
