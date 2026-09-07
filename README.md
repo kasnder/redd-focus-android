@@ -1,12 +1,12 @@
-# ReDD Focus for Android (Beta)
+# Digital Habits: Focus for Android (Beta)
 
-> Formerly known as GMWay or GreaseMilkyway.
+> Formerly known as ReDD Focus, GMWay or GreaseMilkyway.
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/icon.png" alt="ReDD Focus Logo" width="200"/>
+  <img src="fastlane/metadata/android/en-US/images/icon.png" alt="Digital Habits: Focus Logo" width="200"/>
 </div>
 
-ReDD Focus is an Android accessibility tool for people with ADHD and related attention difficulties. It helps users make supported apps feel calmer and easier to navigate by reducing selected sources of visual clutter and overstimulation on their own device.
+Digital Habits: Focus is an Android accessibility tool for people with ADHD and related attention difficulties. It helps users make supported apps feel calmer and easier to navigate by reducing selected sources of visual clutter and overstimulation on their own device.
 
 <a href='https://play.google.com/store/apps/details?id=net.kollnig.greasemilkyway'><img height=70 alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png'/></a>
 <a href='https://github.com/kasnder/GreaseMilkyway/releases/latest'><img height=70 alt='Get it on Github' src='https://raw.githubusercontent.com/TrackerControl/tracker-control-android/master/images/get-it-on-github.png'/></a>
@@ -14,7 +14,7 @@ ReDD Focus is an Android accessibility tool for people with ADHD and related att
 
 ## What the App Does
 
-ReDD Focus is designed for people who may find some app interfaces hard to manage because they are visually busy, highly stimulating, or difficult to ignore.
+Digital Habits: Focus is designed for people who may find some app interfaces hard to manage because they are visually busy, highly stimulating, or difficult to ignore.
 
 The app can help users:
 - reduce distracting interface sections in supported apps
@@ -27,7 +27,7 @@ The app works locally on the device through Android's accessibility framework. I
 
 ## How It Works
 
-ReDD Focus ships with a set of optional interface rules. Users can enable the rules that help them and leave the rest off. These rules target specific on-screen elements in supported apps so the interface can be made less overwhelming for the individual user.
+Digital Habits: Focus ships with a set of optional interface rules. Users can enable the rules that help them and leave the rest off. These rules target specific on-screen elements in supported apps so the interface can be made less overwhelming for the individual user.
 
 The app also includes:
 - a configurable friction gate for opening settings
@@ -36,7 +36,7 @@ The app also includes:
 
 ## Privacy
 
-ReDD Focus:
+Digital Habits: Focus:
 - runs entirely on-device
 - does not require an account
 - does not collect or transmit personal data

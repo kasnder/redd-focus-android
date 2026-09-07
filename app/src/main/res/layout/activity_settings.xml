@@ -4,9 +4,12 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background_main"
     android:fitsSystemWindows="false">
 
     <com.google.android.material.appbar.AppBarLayout
+        android:elevation="0dp"
+        app:elevation="0dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
         <com.google.android.material.appbar.MaterialToolbar
@@ -14,6 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/header_bg"
+            android:elevation="0dp"
             app:title="@string/settings_title"
             app:titleTextAppearance="@style/ToolbarTitleText"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
@@ -49,10 +53,11 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/service_header_bg"
-                app:strokeWidth="1dp">
+                app:cardCornerRadius="14dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/white"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -70,7 +75,7 @@
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/pause_duration_dialog_title" android:textAppearance="?attr/textAppearanceBodyLarge" />
                         <TextView android:id="@+id/tv_pause_duration_subtitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="@string/pause_duration_subtitle_default" android:textAppearance="?attr/textAppearanceBodySmall" android:textColor="?android:attr/textColorSecondary" />
                     </LinearLayout>
-                    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/service_header_bg" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/outline_variant" />
                     <LinearLayout
                         android:id="@+id/btn_notification_timeout"
                         android:layout_width="match_parent"
@@ -103,10 +108,11 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/service_header_bg"
-                app:strokeWidth="1dp">
+                app:cardCornerRadius="14dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/white"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:id="@+id/btn_friction_gate"
                     android:layout_width="match_parent"
@@ -138,10 +144,11 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/service_header_bg"
-                app:strokeWidth="1dp">
+                app:cardCornerRadius="14dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/white"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:id="@+id/btn_custom_rules"
                     android:layout_width="match_parent"

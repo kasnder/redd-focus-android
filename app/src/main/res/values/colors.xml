@@ -1,34 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ReDD Focus Brand Colors - Light Mode -->
-    
-    <!-- Primary Blue - Used for header, primary actions, switches -->
-    <color name="primary_blue">#1E40AF</color>
-    
-    <!-- Header Background - Light blue, calming -->
-    <color name="header_bg">#E0F2FE</color>
-    
-    <!-- Light Blue - Used for backgrounds, cards, subtle highlights -->
-    <color name="light_blue">#DBEAFE</color>
-    
-    <!-- Text Colors -->
-    <color name="text_dark">#111827</color>
-    <color name="text_light">#6B7280</color>
-    
-    <!-- Background Colors -->
+    <!-- Digital Habits: Focus light palette. -->
+    <color name="primary_blue">#17253D</color>
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="header_bg">#F5F0E8</color>
+    <color name="light_blue">#DCE4F1</color>
+    <color name="text_dark">#1E2938</color>
+    <color name="text_light">#657181</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="background_main">#FFFFFFFF</color>
-    <color name="service_header_bg">#F1F5F9</color>  <!-- Subtle grey-blue for service section -->
-    
-    <!-- Accent Colors -->
-    <color name="accent_green">#34C759</color>
-    <color name="state_paused">#B45309</color>
-    
-    <!-- Callout/Alert Colors (for warnings, errors) -->
-    <color name="callout_bg">#FEE2E2</color>
-    <color name="callout_text">#991B1B</color>
-    
-    <!-- System Colors (keep for compatibility) -->
+    <color name="background_main">#F5F0E8</color>
+    <color name="service_header_bg">#FBF9F5</color>
+    <color name="surface_light">#FBF9F5</color>
+    <color name="outline">#C6BFB5</color>
+    <color name="outline_variant">#E5DED4</color>
+    <color name="accent_green">#2E7D5B</color>
+    <color name="active_border">#A1C5B5</color>
+    <color name="state_paused">#9C6B25</color>
+    <color name="callout_bg">#FBE9E7</color>
+    <color name="callout_text">#7C2D2D</color>
     <color name="black">#FF000000</color>
     
     <!-- Deprecated - keeping for backwards compatibility during transition -->

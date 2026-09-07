@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ReDD Focus</string>
-    <string name="accessibility_service_description">ReDD Focus - Help ADHD</string>
+    <string name="launcher_name">Focus</string>
+    <string name="app_name">Digital Habits: Focus</string>
+    <string name="accessibility_service_description">Digital Habits: Focus - Help ADHD</string>
     <string name="enable_accessibility_service">Enable Accessibility Service</string>
-    <string name="enable_service">Enable ReDD Focus</string>
+    <string name="enable_service">Enable Digital Habits: Focus</string>
     <string name="rules_settings">Rules</string>
     <string name="enable_service_first">Please enable the accessibility service first</string>
     <string name="custom_rules_title">Custom Rules (Expert Mode)</string>
@@ -32,7 +33,7 @@
     <!-- Step text - One-step flow (Pixel, stock Android) -->
     <!-- Image files: step1_onestep.png, step2_onestep.png, etc. -->
     <string name="onboarding_step1_onestep">Toggle the enable service switch</string>
-    <string name="onboarding_step2_onestep">Tap on ReDD Focus</string>
+    <string name="onboarding_step2_onestep">Tap on Digital Habits: Focus</string>
     <string name="onboarding_step3_onestep">Turn the app on</string>
     <string name="onboarding_step4_onestep">Tap "Allow"</string>
     
@@ -40,7 +41,7 @@
     <!-- Image files: step1_twostep.png, step2_twostep.png, etc. -->
     <string name="onboarding_step1_twostep">Toggle the enable service switch</string>
     <string name="onboarding_step2_twostep">Tap on "Installed apps"</string>
-    <string name="onboarding_step3_twostep">Tap on ReDD Focus</string>
+    <string name="onboarding_step3_twostep">Tap on Digital Habits: Focus</string>
     <string name="onboarding_step4_twostep">Turn the app on</string>
     <string name="onboarding_step5_twostep">Tap "Allow"</string>
 
@@ -70,7 +71,7 @@
     <string name="app_hidden_and_opens">%1$d hidden · opens in %2$s</string>
     <string name="not_installed_group">Not installed · %1$d apps</string>
     <string name="disable_app_title">Pause %1$s</string>
-    <string name="footer_branding">Made with ❤️ by reddfocus.org</string>
+    <string name="footer_branding">Made with ❤️ by digitalhabits.org</string>
     <string name="app_detail_state">Blocking is active</string>
     <string name="app_detail_paused">Paused</string>
     <string name="pause_app_title">Pause app</string>
@@ -103,7 +104,7 @@
     <string name="picker_channel_description">Allows you to select and hide elements in other apps</string>
     <string name="picker_active_channel_name">Element picker active</string>
     <string name="picker_active_channel_description">Shown while you are selecting an element</string>
-    <string name="picker_notification_title">ReDD Focus is active</string>
+    <string name="picker_notification_title">Digital Habits: Focus is active</string>
     <string name="picker_notification_text">Tap inspect to pick an element to hide</string>
     <string name="picker_action_inspect">Inspect element</string>
     <string name="picker_action_stop">Stop inspecting</string>
@@ -114,20 +115,20 @@
     <!-- Pause notification -->
     <string name="pause_channel_name">Pause blocking</string>
     <string name="pause_channel_description">Allows you to temporarily pause blocking in the current app</string>
-    <string name="pause_notification_title">ReDD Focus is hiding parts of %1$s</string>
+    <string name="pause_notification_title">Digital Habits: Focus is hiding parts of %1$s</string>
     <string name="pause_notification_text">Pause blocking for %1$s without leaving the app.</string>
     <string name="pause_notification_action">Pause (%1$dm)</string>
 
     <!-- Accessibility service prompt -->
-    <string name="accessibility_prompt_title">Enable ReDD Focus</string>
-    <string name="accessibility_prompt_message">To hide elements, ReDD Focus needs accessibility access. Use at your own risk.</string>
+    <string name="accessibility_prompt_title">Enable Digital Habits: Focus</string>
+    <string name="accessibility_prompt_message">To hide elements, Digital Habits: Focus needs accessibility access. Use at your own risk.</string>
     <string name="accessibility_prompt_enable">Enable</string>
     <string name="accessibility_prompt_help">Need help?</string>
-    <string name="accessibility_help_title">How to enable ReDD Focus</string>
+    <string name="accessibility_help_title">How to enable Digital Habits: Focus</string>
 
     <!-- FAB / Picker intro dialog -->
     <string name="picker_intro_title">Hide distracting elements</string>
-    <string name="picker_intro_message">This feature lets you pick and hide any UI element in other apps.\n\nAfter enabling, you\'ll see a notification that lets you start the element picker from any app.\n\nTo use it, ReDD Focus needs permission to show notifications.</string>
+    <string name="picker_intro_message">This feature lets you pick and hide any UI element in other apps.\n\nAfter enabling, you\'ll see a notification that lets you start the element picker from any app.\n\nTo use it, Digital Habits: Focus needs permission to show notifications.</string>
     <string name="picker_intro_enable">Enable</string>
     <string name="picker_intro_cancel">Not now</string>
     <string name="picker_notification_shown">Picker ready! Switch to any app to start.</string>

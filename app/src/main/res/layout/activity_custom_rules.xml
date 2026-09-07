@@ -4,6 +4,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background_main"
     android:fitsSystemWindows="false">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -15,6 +16,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/header_bg"
+            android:elevation="0dp"
             app:titleTextAppearance="@style/ToolbarTitleTextRegular"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
             android:theme="@style/ToolbarTheme" />
@@ -37,6 +39,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:clipToPadding="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
                 android:paddingBottom="12dp" />
 
             <TextView
@@ -92,7 +96,7 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@color/service_header_bg"
+                        android:background="@color/surface_light"
                         android:orientation="vertical"
                         android:paddingStart="32dp"
                         android:paddingTop="16dp"

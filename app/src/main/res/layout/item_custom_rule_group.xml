@@ -8,5 +8,5 @@
     android:paddingEnd="20dp"
     android:paddingBottom="8dp"
     android:textAppearance="?attr/textAppearanceLabelLarge"
-    android:textColor="?android:attr/textColorSecondary"
+    android:textColor="@color/text_light"
     android:textStyle="bold" />

@@ -1,34 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ReDD Focus Brand Colors - Dark Mode -->
-    
-    <!-- Primary Blue - Lighter/brighter in dark mode for better visibility -->
-    <color name="primary_blue">#60A5FA</color>
-    
-    <!-- Header Background - Dark blue for dark mode -->
-    <color name="header_bg">#001F3D</color>
-    
-    <!-- Light Blue - Darker, muted blue for dark mode backgrounds -->
-    <color name="light_blue">#1E3A5F</color>
-    
-    <!-- Text Colors - Inverted for dark mode -->
-    <color name="text_dark">#F5F5F5</color>
-    <color name="text_light">#D1D5DB</color>
-    
-    <!-- Background Colors - Dark gray, easier on eyes than pure black -->
-    <color name="white">#121826</color>
-    <color name="background_main">#121826</color>
-    <color name="service_header_bg">#1E2A3A</color>  <!-- Dark blue-grey for service section -->
-    
-    <!-- Accent Colors - Slightly brighter in dark mode -->
-    <color name="accent_green">#34D399</color>
-    <color name="state_paused">#FBBF24</color>
-    
-    <!-- Callout/Alert Colors (for warnings, errors) - Muted for dark mode -->
-    <color name="callout_bg">#7F1D1D</color>
-    <color name="callout_text">#FEE2E2</color>
-    
-    <!-- System Colors -->
+    <!-- Digital Habits: Focus dark palette. -->
+    <color name="primary_blue">#8FA9D1</color>
+    <color name="on_primary">#151A22</color>
+    <color name="header_bg">#151A22</color>
+    <color name="light_blue">#304666</color>
+    <color name="text_dark">#E5E7EB</color>
+    <color name="text_light">#B8C1CC</color>
+    <color name="white">#202936</color>
+    <color name="background_main">#151A22</color>
+    <color name="service_header_bg">#202936</color>
+    <color name="surface_light">#202936</color>
+    <color name="outline">#64748B</color>
+    <color name="outline_variant">#334155</color>
+    <color name="accent_green">#8BC5A7</color>
+    <color name="active_border">#8BC5A7</color>
+    <color name="state_paused">#E3B66B</color>
+    <color name="callout_bg">#742A2A</color>
+    <color name="callout_text">#FED7D7</color>
     <color name="black">#FF000000</color>
     
 </resources>

@@ -1,12 +1,12 @@
 # Custom Rules README
 
-This document covers the advanced custom-rules feature in ReDD Focus.
+This document covers the advanced custom-rules feature in Digital Habits: Focus.
 
 Custom rules are intended for people who want more control over which interface elements are reduced inside supported apps. This feature is optional and best suited to advanced users who are comfortable inspecting Android view identifiers and screen structure.
 
 ## What Custom Rules Are For
 
-Custom rules let you describe a specific interface element that ReDD Focus should hide on your device. This can be useful when a built-in rule does not cover the part of the interface that feels distracting or overstimulating for you.
+Custom rules let you describe a specific interface element that Digital Habits: Focus should hide on your device. This can be useful when a built-in rule does not cover the part of the interface that feels distracting or overstimulating for you.
 
 ## Rule Format
 
@@ -79,7 +79,7 @@ Only `hasThumbnail=false` turns the check off. A width that cannot be read falls
 default, because dropping the check would widen the rule to every element it is paired with.
 
 Apps hide decorative views, thumbnails among them, from accessibility tools. While a rule with
-`hasThumbnail` is enabled, ReDD Focus therefore asks Android for the full view tree, which uses
+`hasThumbnail` is enabled, Digital Habits: Focus therefore asks Android for the full view tree, which uses
 somewhat more battery than usual. Turning such rules off restores the smaller tree.
 
 ### Limiting a Rule to One Screen
