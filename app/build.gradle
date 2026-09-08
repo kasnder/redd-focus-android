@@ -4,14 +4,14 @@ plugins {
 
 android {
     namespace 'net.kollnig.greasemilkyway'
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId "net.kollnig.greasemilkyway"
         minSdk 24
-        targetSdk 36
-        versionCode 26033101
-        versionName "0.9.1"
+        targetSdk 37
+        versionCode 26090801
+        versionName "1.0.0"
     }
 
     flavorDimensions "variant"
