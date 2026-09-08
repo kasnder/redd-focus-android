@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
 import net.kollnig.distractionlib.FilterRule;
@@ -28,7 +29,6 @@ import java.util.Map;
 final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int STATUS = 1;
     private static final int APP = 2;
-    private static final int FOOTER = 3;
     private static final int NOT_INSTALLED = 4;
 
     private final Context context;
@@ -86,7 +86,6 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 items.addAll(missing);
             }
         }
-        items.add(new FooterItem());
         notifyDataSetChanged();
     }
 
@@ -95,8 +94,7 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         Object item = items.get(position);
         if (item instanceof StatusItem) return STATUS;
         if (item instanceof AppItem) return APP;
-        if (item instanceof MissingItem) return NOT_INSTALLED;
-        return FOOTER;
+        return NOT_INSTALLED;
     }
 
     @NonNull
@@ -109,7 +107,7 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         if (type == APP || type == NOT_INSTALLED) {
             return new AppHolder(inflater.inflate(R.layout.item_app_group, parent, false));
         }
-        return new FooterHolder(inflater.inflate(R.layout.item_footer, parent, false));
+        throw new IllegalArgumentException("Unknown overview row type: " + type);
     }
 
     @Override
@@ -127,12 +125,6 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             bindApp((AppHolder) holder, app, !AppCatalog.isInstalled(context, app.packageName));
         } else if (holder instanceof AppHolder) {
             bindMissingHeader((AppHolder) holder, (MissingItem) model);
-        } else if (holder instanceof FooterHolder) {
-            FooterHolder footer = (FooterHolder) holder;
-            footer.footer.setText(R.string.footer_branding);
-            footer.footer.setVisibility(context.getResources().getBoolean(R.bool.show_footer_branding)
-                    ? View.VISIBLE : View.GONE);
-            footer.recruitment.setText(R.string.recruitment_message);
         }
     }
 
@@ -158,12 +150,14 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void bindMissingHeader(AppHolder holder, MissingItem missing) {
+        resetCardState(holder);
         holder.name.setText(context.getString(R.string.not_installed_group, missing.apps.size()));
         holder.subtitle.setText(missingExpanded
                 ? R.string.not_installed_collapse : R.string.not_installed_expand);
         holder.subtitle.setTextColor(ContextCompat.getColor(context, R.color.text_light));
         holder.icon.setImageResource(android.R.drawable.sym_def_app_icon);
         holder.switchView.setVisibility(View.GONE);
+        holder.switchView.setEnabled(false);
         holder.chevron.setVisibility(View.VISIBLE);
         holder.chevron.setText(missingExpanded
                 ? R.string.chevron_expanded : R.string.chevron_collapsed);
@@ -174,12 +168,14 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void bindApp(AppHolder holder, AppItem item, boolean missing) {
+        resetCardState(holder);
         holder.name.setText(AppCatalog.getDisplayName(context, item.packageName));
         holder.icon.setImageDrawable(AppCatalog.getIcon(context, item.packageName));
         if (missing) {
             holder.subtitle.setText(R.string.not_installed);
             holder.subtitle.setTextColor(ContextCompat.getColor(context, R.color.text_light));
             holder.switchView.setVisibility(View.GONE);
+            holder.switchView.setEnabled(false);
             holder.chevron.setVisibility(View.INVISIBLE);
             holder.itemView.setOnClickListener(null);
             return;
@@ -191,7 +187,7 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             holder.subtitle.setText(context.getString(R.string.app_paused_resumes,
                     formatTime(item.pausedUntil)));
             holder.subtitle.setTextColor(ContextCompat.getColor(context, R.color.state_paused));
-        } else if (enabled) {
+        } else if (serviceEnabled && enabled && item.hasActiveAction()) {
             holder.subtitle.setText(item.destination.isEmpty()
                     ? context.getResources().getQuantityString(
                             R.plurals.hides_elements, item.activeRows, item.activeRows)
@@ -204,8 +200,8 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         holder.switchView.setVisibility(View.VISIBLE);
-        holder.chevron.setVisibility(View.VISIBLE);
-        holder.chevron.setText(R.string.chevron_collapsed);
+        holder.switchView.setEnabled(true);
+        holder.chevron.setVisibility(View.GONE);
         holder.switchView.setOnCheckedChangeListener(null);
         holder.switchView.setChecked(enabled);
         holder.switchView.setContentDescription(context.getString(enabled
@@ -228,6 +224,23 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         holder.itemView.setOnClickListener(view -> context.startActivity(
                 new Intent(context, AppDetailActivity.class)
                         .putExtra(AppDetailActivity.EXTRA_PACKAGE_NAME, item.packageName)));
+
+        boolean active = serviceEnabled && enabled && item.hasActiveAction();
+        holder.card.setStrokeColor(ContextCompat.getColor(context,
+                active ? R.color.active_border : R.color.outline));
+        holder.card.setStrokeWidth(active
+                ? Math.round(context.getResources().getDisplayMetrics().density) : 0);
+    }
+
+    private void resetCardState(AppHolder holder) {
+        holder.card.setStrokeColor(ContextCompat.getColor(context, R.color.outline));
+        holder.card.setStrokeWidth(0);
+        holder.switchView.setOnCheckedChangeListener(null);
+        holder.switchView.setChecked(false);
+        holder.switchView.setEnabled(true);
+        holder.switchView.setVisibility(View.VISIBLE);
+        holder.chevron.setVisibility(View.VISIBLE);
+        holder.itemView.setOnClickListener(null);
     }
 
     private void showPauseOrDisable(AppItem item) {
@@ -302,6 +315,10 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             activeRows = active;
             destination = navigationDestination;
         }
+
+        boolean hasActiveAction() {
+            return activeRows > 0 || !destination.isEmpty();
+        }
     }
 
     private static final class MissingItem {
@@ -310,9 +327,6 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         MissingItem(List<AppItem> apps) {
             this.apps = apps;
         }
-    }
-
-    private static final class FooterItem {
     }
 
     static final class StatusHolder extends RecyclerView.ViewHolder {
@@ -329,6 +343,7 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     static final class AppHolder extends RecyclerView.ViewHolder {
+        final MaterialCardView card;
         final ImageView icon;
         final TextView name;
         final TextView subtitle;
@@ -337,6 +352,7 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         AppHolder(View view) {
             super(view);
+            card = (MaterialCardView) view;
             icon = view.findViewById(R.id.app_icon);
             name = view.findViewById(R.id.app_name);
             subtitle = view.findViewById(R.id.package_name);
@@ -345,14 +361,4 @@ final class OverviewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    static final class FooterHolder extends RecyclerView.ViewHolder {
-        final TextView footer;
-        final TextView recruitment;
-
-        FooterHolder(View view) {
-            super(view);
-            footer = view.findViewById(R.id.footer_text);
-            recruitment = view.findViewById(R.id.recruitment_text);
-        }
-    }
 }

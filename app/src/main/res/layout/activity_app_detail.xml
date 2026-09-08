@@ -4,6 +4,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background_main"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
@@ -11,13 +12,25 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/header_bg"
+        android:elevation="0dp"
+        android:theme="@style/ToolbarTheme"
         app:titleTextAppearance="@style/ToolbarTitleText" />
 
-    <LinearLayout
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:padding="16dp">
+        android:layout_margin="16dp"
+        app:cardBackgroundColor="@color/white"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="2dp"
+        app:strokeColor="@color/outline_variant"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:padding="16dp">
 
         <ImageView
             android:id="@+id/app_detail_icon"
@@ -53,8 +66,10 @@
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:minWidth="64dp"
-            android:contentDescription="@string/disable_all_rules_for_app" />
-    </LinearLayout>
+            android:contentDescription="@string/disable_all_rules_for_app"
+            app:useMaterialThemeColors="true" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <HorizontalScrollView
         android:layout_width="match_parent"
@@ -72,7 +87,9 @@
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:text="@string/pause_default_placeholder" />
+                android:text="@string/pause_default_placeholder"
+                android:textColor="@color/primary_blue"
+                app:strokeColor="@color/outline" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pause_default"
@@ -80,7 +97,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:text="@string/pause_default_placeholder" />
+                android:text="@string/pause_default_placeholder"
+                android:textColor="@color/on_primary"
+                app:backgroundTint="@color/primary_blue" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pause_longer"
@@ -88,7 +107,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:text="@string/pause_default_placeholder" />
+                android:text="@string/pause_default_placeholder"
+                android:textColor="@color/primary_blue"
+                app:strokeColor="@color/outline" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -111,5 +132,7 @@
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
         android:minHeight="48dp"
-        android:text="@string/hide_something_new" />
+        android:text="@string/hide_something_new"
+        android:textColor="@color/on_primary"
+        app:backgroundTint="@color/primary_blue" />
 </LinearLayout>

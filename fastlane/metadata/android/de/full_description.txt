@@ -1,3 +1,3 @@
-<p><i>ReDD Focus</i> ist ein barrierefreies Android-Tool für Menschen mit ADHS und ähnlichen Aufmerksamkeitsstörungen. Es trägt zu einem entspannteren und übersichtlicheren digitalen Erlebnis bei, indem es Nutzern ermöglicht, visuelle Unordnung zu reduzieren, überstimulierende Elemente zu minimieren und sich auf das Wesentliche zu konzentrieren.</p>
+<p><i>Digital Habits: Focus</i> ist ein barrierefreies Android-Tool für Menschen mit ADHS und ähnlichen Aufmerksamkeitsstörungen. Es trägt zu einem entspannteren und übersichtlicheren digitalen Erlebnis bei, indem es Nutzern ermöglicht, visuelle Unordnung zu reduzieren, überstimulierende Elemente zu minimieren und sich auf das Wesentliche zu konzentrieren.</p>
 
-<p><i>Hinweis:</i> Diese App hieß früher GMWay (oder GreaseMilkyway). Die Funktionalität bleibt gleich, nur der Name hat sich geändert.</p>
+<p><i>Hinweis:</i> Diese App hieß früher ReDD Focus, GMWay (oder GreaseMilkyway). Die Funktionalität bleibt gleich, nur der Name hat sich geändert.</p>

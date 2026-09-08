@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for ReDD Focus Android - Light Mode -->
+    <!-- Base application theme for Digital Habits: Focus - Light Mode -->
     <style name="Base.Theme.GreaseMilkyway" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color - used for app bar, switches, buttons -->
+        <item name="elevationOverlayEnabled">false</item>
         <item name="colorPrimary">@color/primary_blue</item>
         
         <!-- Darker variant of primary - used for status bar, darker UI elements -->
@@ -10,13 +11,31 @@
         
         <!-- Color of text/icons on top of primary color -->
         <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/light_blue</item>
+        <item name="colorOnPrimaryContainer">@color/primary_blue</item>
         
         <!-- Background color for the app -->
         <item name="android:windowBackground">@color/background_main</item>
+        <item name="android:colorAccent">@color/primary_blue</item>
         
         <!-- Accent color for FABs (Floating Action Buttons) and other accents -->
-        <item name="colorSecondary">@color/primary_blue</item>
+        <item name="colorSecondary">@color/text_light</item>
         <item name="colorOnSecondary">@color/white</item>
+        <item name="colorTertiary">@color/accent_green</item>
+        <item name="colorOnTertiary">@color/white</item>
+        <item name="colorControlActivated">@color/primary_blue</item>
+        <item name="colorControlNormal">@color/text_light</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/text_dark</item>
+        <item name="colorSurfaceVariant">@color/surface_light</item>
+        <item name="colorOnSurfaceVariant">@color/text_light</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorOutlineVariant">@color/outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/white</item>
+        <item name="colorSurfaceContainerLow">@color/surface_light</item>
+        <item name="colorSurfaceContainer">@color/surface_light</item>
+        <item name="colorSurfaceContainerHigh">@color/white</item>
+        <item name="colorSurfaceContainerHighest">@color/outline_variant</item>
         
         <!-- Text colors for consistency -->
         <item name="android:textColorPrimary">@color/text_dark</item>
@@ -50,5 +69,6 @@
 
     <!-- Theme used for the toolbar to control icon tinting -->
     <style name="ToolbarTheme" parent="">
+        <item name="colorControlNormal">@color/text_light</item>
     </style>
 </resources>

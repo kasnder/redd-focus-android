@@ -69,7 +69,13 @@ public class MainActivity extends AppCompatActivity implements FrictionGateHost 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle(R.string.app_name);
+        TextView toolbarTitle = findViewById(R.id.toolbar_title);
+        if (getSupportActionBar() != null && toolbarTitle != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+            toolbarTitle.setText(R.string.app_name);
+        } else if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(R.string.app_name);
+        }
 
         // Initialize config
         config = new ServiceConfig(this);

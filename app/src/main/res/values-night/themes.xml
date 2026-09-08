@@ -1,27 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for ReDD Focus Android - Dark Mode -->
+    <!-- Base application theme for Digital Habits: Focus - Dark Mode -->
     <style name="Base.Theme.GreaseMilkyway" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color - lighter/brighter in dark mode for visibility -->
+        <item name="elevationOverlayEnabled">false</item>
         <item name="colorPrimary">@color/primary_blue</item>
         
         <!-- Darker variant of primary -->
         <item name="colorPrimaryVariant">@color/primary_blue</item>
         
         <!-- Color of text/icons on top of primary color -->
-        <item name="colorOnPrimary">@color/text_dark</item>
+        <item name="colorOnPrimary">@color/background_main</item>
+        <item name="colorPrimaryContainer">@color/light_blue</item>
+        <item name="colorOnPrimaryContainer">@color/text_dark</item>
         
         <!-- Background color for the app - dark gray -->
         <item name="android:windowBackground">@color/background_main</item>
+        <item name="android:colorAccent">@color/primary_blue</item>
         
         <!-- Accent color for FABs and other accents -->
-        <item name="colorSecondary">@color/primary_blue</item>
-        <item name="colorOnSecondary">@color/text_dark</item>
+        <item name="colorSecondary">@color/text_light</item>
+        <item name="colorOnSecondary">@color/background_main</item>
+        <item name="colorTertiary">@color/accent_green</item>
+        <item name="colorOnTertiary">@color/background_main</item>
+        <item name="colorControlActivated">@color/primary_blue</item>
+        <item name="colorControlNormal">@color/text_light</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/text_dark</item>
+        <item name="colorSurfaceVariant">@color/service_header_bg</item>
+        <item name="colorOnSurfaceVariant">@color/text_light</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorOutlineVariant">@color/outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/background_main</item>
+        <item name="colorSurfaceContainerLow">@color/white</item>
+        <item name="colorSurfaceContainer">@color/white</item>
+        <item name="colorSurfaceContainerHigh">@color/service_header_bg</item>
+        <item name="colorSurfaceContainerHighest">@color/outline_variant</item>
         
         <!-- Status bar color -->
         <item name="android:statusBarColor">@color/header_bg</item>
         
         <!-- Make status bar icons light in dark mode -->
         <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+
+    <style name="ToolbarTheme" parent="">
+        <item name="colorControlNormal">@color/text_dark</item>
     </style>
 </resources>
