@@ -1,4 +1,4 @@
-# Digital Habits: Focus for Android (Beta)
+# Digital Habits: Focus for Android
 
 > Formerly known as ReDD Focus, GMWay or GreaseMilkyway.
 
