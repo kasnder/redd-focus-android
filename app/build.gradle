@@ -46,14 +46,14 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'com.google.android.material:material:1.13.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'com.google.android.material:material:1.14.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
     implementation 'androidx.activity:activity:1.13.0'
-    implementation 'androidx.core:core:1.18.0'
+    implementation 'androidx.core:core:1.19.0'
     implementation project(':distractionlib')
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
-    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-core:5.23.0'
 }
